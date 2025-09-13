@@ -1,3 +1,4 @@
+pub mod backoff;
 pub mod periodic;
 pub mod retry;
 

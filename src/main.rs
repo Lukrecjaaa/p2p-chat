@@ -211,13 +211,15 @@ async fn run_client(
             engine.interval
         };
         let mut interval_timer = tokio::time::interval(interval_duration);
-        let mut outbox_retry_timer = tokio::time::interval(Duration::from_secs(2));
 
         info!("Starting sync engine with interval {:?}", interval_duration);
 
-        // Initial sync cycle
+        // Initial discovery and sync cycle
         {
             let mut engine = sync_engine_clone.lock().await;
+            if let Err(e) = engine.initial_discovery().await {
+                error!("Initial mailbox discovery failed: {}", e);
+            }
             if let Err(e) = engine.sync_cycle().await {
                 error!("Initial sync cycle failed: {}", e);
             }
@@ -229,14 +231,6 @@ async fn run_client(
                     let mut engine = sync_engine_clone.lock().await;
                     if let Err(e) = engine.sync_cycle().await {
                         error!("Sync cycle failed: {}", e);
-                    }
-                }
-                _ = outbox_retry_timer.tick() => {
-                    let mut engine = sync_engine_clone.lock().await;
-                    if !engine.discovered_mailboxes.is_empty() {
-                        if let Err(e) = engine.retry_outbox().await {
-                            debug!("Fast outbox retry failed: {}", e);
-                        }
                     }
                 }
                 event = sync_event_rx.recv() => {

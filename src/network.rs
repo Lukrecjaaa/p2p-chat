@@ -14,7 +14,7 @@ use libp2p::{
     swarm::{NetworkBehaviour, Swarm, SwarmEvent},
     Multiaddr, PeerId,
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -70,10 +70,6 @@ pub enum NetworkCommand {
         key: kad::RecordKey,
         response: oneshot::Sender<Result<kad::QueryId>>,
     },
-    BlockPeer {
-        peer_id: PeerId,
-        response: oneshot::Sender<NetworkResponse>,
-    },
 }
 
 #[derive(Debug)]
@@ -84,7 +80,6 @@ pub enum NetworkResponse {
     MailboxPutResult { success: bool },
     MailboxMessages { messages: Vec<EncryptedMessage> },
     MailboxAckResult { deleted: usize },
-    PeerBlocked,
 }
 
 #[derive(Clone)]
@@ -141,15 +136,6 @@ impl NetworkHandle {
         rx.await?
     }
 
-    pub async fn block_peer(&self, peer_id: PeerId) -> Result<()> {
-        let (tx, rx) = oneshot::channel();
-        self.command_sender.send(NetworkCommand::BlockPeer { peer_id, response: tx })?;
-        match rx.await? {
-            NetworkResponse::PeerBlocked => Ok(()),
-            NetworkResponse::Error(e) => Err(anyhow!(e)),
-            _ => Err(anyhow!("Unexpected response")),
-        }
-    }
 }
 
 
@@ -559,6 +545,25 @@ impl NetworkLayer {
                     match storage.delete_messages(recipient, msg_ids).await {
                         Ok(deleted) => {
                             info!("Deleted {} messages for recipient: {:?}", deleted, &recipient[..8]);
+                            
+                            // Check if there are any remaining messages for this recipient
+                            // If not, we should stop advertising ourselves as having messages
+                            match storage.fetch_messages(recipient, 1).await {
+                                Ok(remaining_messages) if remaining_messages.is_empty() => {
+                                    // No more messages for this recipient, stop advertising
+                                    debug!("No more messages for recipient {:?}, could stop DHT announcement", &recipient[..8]);
+                                    // Note: We don't have a direct way to stop providing a key in the current libp2p setup
+                                    // This would require additional DHT management functionality
+                                }
+                                Ok(_) => {
+                                    // Still have messages for this recipient, keep advertising
+                                    debug!("Still have messages for recipient {:?}, keeping DHT announcement", &recipient[..8]);
+                                }
+                                Err(e) => {
+                                    debug!("Failed to check remaining messages for cleanup: {}", e);
+                                }
+                            }
+                            
                             MailboxResponse::AckResult { deleted }
                         }
                         Err(e) => {
@@ -663,6 +668,7 @@ impl NetworkLayer {
                         if let Some(sync_tx) = &self.sync_event_tx {
                             let dht_result = DhtQueryResult::ProvidersFound {
                                 providers: providers.into_iter().collect(),
+                                finished: false, // More results may come
                             };
                             let _ = sync_tx.send(SyncEvent::DhtQueryResult { 
                                 query_id: id, 
@@ -672,6 +678,17 @@ impl NetworkLayer {
                     }
                     kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FinishedWithNoAdditionalRecord { .. })) => {
                         trace!("DHT query {} finished with no additional providers", id);
+                        
+                        if let Some(sync_tx) = &self.sync_event_tx {
+                            let dht_result = DhtQueryResult::ProvidersFound {
+                                providers: HashSet::new(),
+                                finished: true, // Query is complete
+                            };
+                            let _ = sync_tx.send(SyncEvent::DhtQueryResult { 
+                                query_id: id, 
+                                result: dht_result 
+                            });
+                        }
                     }
                     kad::QueryResult::GetProviders(Err(e)) => {
                         error!("DHT provider query {} failed: {:?}", id, e);
@@ -775,17 +792,6 @@ impl NetworkLayer {
                 let _ = response.send(Ok(query_id));
             }
 
-            NetworkCommand::BlockPeer { peer_id, response } => {
-                info!("Blocking peer {} due to persistent failures", peer_id);
-                
-                // Add to blocked peers list
-                self.blocked_peers.insert(peer_id, std::time::Instant::now());
-                
-                // Remove from Kademlia routing table to stop automatic reconnection attempts
-                self.swarm.behaviour_mut().discovery.kademlia.remove_peer(&peer_id);
-                
-                let _ = response.send(NetworkResponse::PeerBlocked);
-            }
         }
 
         Ok(())

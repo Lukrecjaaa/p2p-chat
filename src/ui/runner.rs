@@ -493,8 +493,11 @@ async fn execute_chat_command(
                 base64::prelude::BASE64_STANDARD.encode(&node.identity.hpke_public_key()));
             let _ = ui_sender.send(UIEvent::ChatMessage(output));
         }
+        "check" => {
+            let _ = ui_sender.send(UIEvent::ChatMessage("✅ Mailbox discovery runs automatically every few seconds.".to_string()));
+        }
         "help" => {
-            let help_text = "Available commands:\n  friend <peer_id> <e2e_key> [nickname] - Add a friend and optionally assign a nickname\n  friends                     - List all friends\n  send <peer_id_or_nickname> <message>    - Send a message\n  history <peer_id_or_nickname> [count] - Show message history (default: 20, max: 1000)\n  peers                       - Show connected peers\n  info                        - Show your identity\n  help                        - Show this help\n  exit                        - Exit the application";
+            let help_text = "Available commands:\n  friend <peer_id> <e2e_key> [nickname] - Add a friend and optionally assign a nickname\n  friends                     - List all friends\n  send <peer_id_or_nickname> <message>    - Send a message\n  history <peer_id_or_nickname> [count] - Show message history (default: 20, max: 1000)\n  peers                       - Show connected peers\n  info                        - Show your identity\n  check                       - Check for new messages in mailboxes\n  help                        - Show this help\n  exit                        - Exit the application";
             let _ = ui_sender.send(UIEvent::ChatMessage(help_text.to_string()));
         }
         "exit" => {

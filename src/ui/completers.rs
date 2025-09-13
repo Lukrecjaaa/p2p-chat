@@ -14,6 +14,7 @@ impl ChatCompleter {
             "friend".to_string(),
             "peers".to_string(),
             "info".to_string(),
+            "check".to_string(),
             "help".to_string(),
             "exit".to_string(),
         ];
