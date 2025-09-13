@@ -25,6 +25,7 @@ use base64::prelude::*;
 use clap::Parser;
 use libp2p::Multiaddr;
 use std::str::FromStr;
+use std::net::TcpListener;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, Mutex};
@@ -38,8 +39,8 @@ struct Cli {
     #[arg(long, help = "Run in mailbox node mode")]
     mailbox: bool,
 
-    #[arg(long, default_value = "8080", help = "Port to listen on")]
-    port: u16,
+    #[arg(long, help = "Port to listen on (random free port if not specified)")]
+    port: Option<u16>,
 
     #[arg(long, help = "Config file path")]
     config: Option<String>,
@@ -51,9 +52,20 @@ struct Cli {
     encrypt: bool,
 }
 
+fn find_free_port() -> Result<u16> {
+    let listener = TcpListener::bind("127.0.0.1:0")?;
+    let port = listener.local_addr()?.port();
+    Ok(port)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
+
+    let port = match cli.port {
+        Some(p) => p,
+        None => find_free_port()?,
+    };
 
     if cli.mailbox {
         tracing_subscriber::fmt()
@@ -70,7 +82,7 @@ async fn main() -> Result<()> {
             "Client"
         }
     );
-    println!("Port: {}", cli.port);
+    println!("Port: {}", port);
     println!("Data directory: {}", cli.data_dir);
     println!();
 
@@ -100,9 +112,9 @@ async fn main() -> Result<()> {
     };
 
     if cli.mailbox {
-        run_mailbox_node(identity, db, encryption, cli.port).await
+        run_mailbox_node(identity, db, encryption, port).await
     } else {
-        run_client(identity, db, encryption, cli.port).await
+        run_client(identity, db, encryption, port).await
     }
 }
 
