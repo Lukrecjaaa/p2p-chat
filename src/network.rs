@@ -35,6 +35,7 @@ pub struct NetworkLayer {
     pending_requests: HashMap<OutboundRequestId, oneshot::Sender<NetworkResponse>>,
     sync_event_tx: Option<mpsc::UnboundedSender<SyncEvent>>,
     mailbox_storage: Option<Arc<SledMailboxStore>>,
+    blocked_peers: HashMap<PeerId, std::time::Instant>,
 }
 
 #[derive(Debug)]
@@ -69,6 +70,10 @@ pub enum NetworkCommand {
         key: kad::RecordKey,
         response: oneshot::Sender<Result<kad::QueryId>>,
     },
+    BlockPeer {
+        peer_id: PeerId,
+        response: oneshot::Sender<NetworkResponse>,
+    },
 }
 
 #[derive(Debug)]
@@ -79,6 +84,7 @@ pub enum NetworkResponse {
     MailboxPutResult { success: bool },
     MailboxMessages { messages: Vec<EncryptedMessage> },
     MailboxAckResult { deleted: usize },
+    PeerBlocked,
 }
 
 #[derive(Clone)]
@@ -133,6 +139,16 @@ impl NetworkHandle {
         let (tx, rx) = oneshot::channel();
         self.command_sender.send(NetworkCommand::StartDhtProviderQuery { key, response: tx })?;
         rx.await?
+    }
+
+    pub async fn block_peer(&self, peer_id: PeerId) -> Result<()> {
+        let (tx, rx) = oneshot::channel();
+        self.command_sender.send(NetworkCommand::BlockPeer { peer_id, response: tx })?;
+        match rx.await? {
+            NetworkResponse::PeerBlocked => Ok(()),
+            NetworkResponse::Error(e) => Err(anyhow!(e)),
+            _ => Err(anyhow!("Unexpected response")),
+        }
     }
 }
 
@@ -213,6 +229,7 @@ impl NetworkLayer {
             pending_requests: HashMap::new(),
             sync_event_tx: None,
             mailbox_storage,
+            blocked_peers: HashMap::new(),
         };
 
         let handle = NetworkHandle { command_sender };
@@ -245,8 +262,26 @@ impl NetworkLayer {
         self.swarm.behaviour_mut().discovery.start_providing(key)
     }
     
+    fn cleanup_blocked_peers(&mut self) {
+        let block_duration = Duration::from_secs(600); // 10 minutes
+        let mut expired_peers = Vec::new();
+        
+        for (&peer_id, &blocked_time) in &self.blocked_peers {
+            if blocked_time.elapsed() > block_duration {
+                expired_peers.push(peer_id);
+            }
+        }
+        
+        for peer_id in expired_peers {
+            info!("Unblocking peer {} after timeout", peer_id);
+            self.blocked_peers.remove(&peer_id);
+        }
+    }
+    
     pub async fn run(&mut self, incoming_messages: mpsc::UnboundedSender<Message>) -> Result<()> {
         info!("Starting network event loop");
+        
+        let mut cleanup_timer = tokio::time::interval(Duration::from_secs(300)); // Cleanup every 5 minutes
 
         loop {
             tokio::select! {
@@ -268,6 +303,10 @@ impl NetworkLayer {
                             break;
                         }
                     }
+                }
+                
+                _ = cleanup_timer.tick() => {
+                    self.cleanup_blocked_peers();
                 }
             }
         }
@@ -330,6 +369,13 @@ impl NetworkLayer {
 
             SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
                 warn!("Outgoing connection error to {:?}: {}", peer_id, error);
+                
+                // If this connection failure is for a known mailbox, notify the sync engine
+                if let Some(peer_id) = peer_id {
+                    if let Some(ref sync_tx) = self.sync_event_tx {
+                        let _ = sync_tx.send(SyncEvent::PeerConnectionFailed(peer_id));
+                    }
+                }
             }
 
             SwarmEvent::IncomingConnectionError { error, .. } => {
@@ -573,6 +619,12 @@ impl NetworkLayer {
                     for (peer_id, multiaddr) in list {
                         info!("Discovered peer via mDNS: {} at {}", peer_id, multiaddr);
                         
+                        // Skip blocked peers
+                        if self.blocked_peers.contains_key(&peer_id) {
+                            debug!("Skipping mDNS discovery for blocked peer {}", peer_id);
+                            continue;
+                        }
+                        
                         self.swarm.behaviour_mut().discovery.add_peer_address(peer_id, multiaddr.clone());
                         
                         // Proactively dial discovered peers to establish connections faster.
@@ -721,6 +773,18 @@ impl NetworkLayer {
             NetworkCommand::StartDhtProviderQuery { key, response } => {
                 let query_id = self.swarm.behaviour_mut().discovery.get_providers(key);
                 let _ = response.send(Ok(query_id));
+            }
+
+            NetworkCommand::BlockPeer { peer_id, response } => {
+                info!("Blocking peer {} due to persistent failures", peer_id);
+                
+                // Add to blocked peers list
+                self.blocked_peers.insert(peer_id, std::time::Instant::now());
+                
+                // Remove from Kademlia routing table to stop automatic reconnection attempts
+                self.swarm.behaviour_mut().discovery.kademlia.remove_peer(&peer_id);
+                
+                let _ = response.send(NetworkResponse::PeerBlocked);
             }
         }
 

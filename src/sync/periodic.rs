@@ -13,8 +13,13 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, trace, warn};
 
+const MAX_CONSECUTIVE_FAILURES: u32 = 3;
+const MAX_FAILURES_IN_WINDOW: u32 = 5;
+const FAILURE_WINDOW_SECONDS: u64 = 60; // 1 minute
+
 pub enum SyncEvent {
     PeerConnected(PeerId),
+    PeerConnectionFailed(PeerId),
     DhtQueryResult {
         query_id: kad::QueryId,
         result: DhtQueryResult,
@@ -34,6 +39,7 @@ pub struct SyncEngine {
     pub interval: Duration,
     pub discovered_mailboxes: HashSet<PeerId>,
     pub mailbox_performance: HashMap<PeerId, MailboxPerformance>,
+    pub failed_mailboxes: HashMap<PeerId, std::time::Instant>,
     pub pending_dht_queries: HashMap<kad::QueryId, kad::RecordKey>,
     pub identity: Arc<Identity>,
     pub friends: Arc<dyn FriendsStore + Send + Sync>,
@@ -48,6 +54,7 @@ pub struct SyncEngine {
 pub struct MailboxPerformance {
     pub success_count: u32,
     pub failure_count: u32,
+    pub consecutive_failures: u32,
     pub last_success: Option<std::time::Instant>,
     pub last_failure: Option<std::time::Instant>,
     pub avg_response_time: Duration,
@@ -69,6 +76,7 @@ impl SyncEngine {
             interval: Duration::from_secs(5), // Much more frequent sync cycles for faster outbox retry
             discovered_mailboxes: HashSet::new(),
             mailbox_performance: HashMap::new(),
+            failed_mailboxes: HashMap::new(),
             pending_dht_queries: HashMap::new(),
             identity,
             friends,
@@ -100,6 +108,8 @@ impl SyncEngine {
             error!("Failed to cleanup seen entries: {}", e);
         }
 
+        self.cleanup_failing_mailboxes();
+
         trace!("Sync cycle completed");
         Ok(())
     }
@@ -108,6 +118,17 @@ impl SyncEngine {
         match event {
             SyncEvent::PeerConnected(peer_id) => {
                 debug!("Peer {} connected, retrying outbox messages and checking for mailboxes", peer_id);
+                
+                // Test immediately if this peer is a mailbox provider
+                if !self.discovered_mailboxes.contains(&peer_id) {
+                    if let Ok(is_mailbox) = self.test_peer_mailbox_capability(peer_id).await {
+                        if is_mailbox {
+                            info!("Newly connected peer {} identified as mailbox provider", peer_id);
+                            self.discovered_mailboxes.insert(peer_id);
+                        }
+                    }
+                }
+                
                 self.discover_mailboxes().await?;
                 self.retry_outbox_for_peer(&peer_id).await?;
 
@@ -116,6 +137,22 @@ impl SyncEngine {
                     if let Err(e) = self.fetch_from_single_mailbox(peer_id).await {
                         error!("Instant fetch from mailbox {} failed: {}", peer_id, e);
                     }
+                }
+            }
+            SyncEvent::PeerConnectionFailed(peer_id) => {
+                // Only track connection failures for discovered mailboxes
+                if self.discovered_mailboxes.contains(&peer_id) {
+                    debug!("Connection failed to known mailbox {}, tracking failure", peer_id);
+                    
+                    // Track connection failure as a serious failure (equivalent to multiple request failures)
+                    self.update_mailbox_performance(peer_id, false, Duration::from_millis(2000));
+                    
+                    // Check if we should remove this mailbox due to persistent failures
+                    if self.should_remove_mailbox(peer_id) {
+                        self.remove_failing_mailbox(peer_id);
+                    }
+                } else {
+                    trace!("Connection failed to peer {} (not a known mailbox)", peer_id);
                 }
             }
             SyncEvent::DhtQueryResult { query_id, result } => {
@@ -162,7 +199,7 @@ impl SyncEngine {
         Ok(())
     }
 
-    async fn fetch_from_mailboxes(&self) -> Result<()> {
+    async fn fetch_from_mailboxes(&mut self) -> Result<()> {
         if self.discovered_mailboxes.is_empty() {
             trace!("No mailbox nodes to fetch from, skipping fetch cycle.");
             return Ok(());
@@ -170,7 +207,14 @@ impl SyncEngine {
 
         let mut total_processed = 0;
 
-        for peer_id in self.get_mailbox_providers().iter() {
+        let mailbox_providers: Vec<PeerId> = self.get_mailbox_providers().iter().cloned().collect();
+        for peer_id in mailbox_providers.iter() {
+            // Skip if this mailbox was removed during iteration (due to connection failures)
+            if !self.discovered_mailboxes.contains(peer_id) {
+                debug!("Skipping fetch from mailbox {} - was removed during iteration", peer_id);
+                continue;
+            }
+            
             match self.fetch_from_single_mailbox(*peer_id).await {
                 Ok(processed_ids) => {
                     total_processed += processed_ids.len();
@@ -190,8 +234,8 @@ impl SyncEngine {
         Ok(())
     }
     
-    async fn fetch_from_single_mailbox(&self, peer_id: PeerId) -> Result<Vec<uuid::Uuid>> {
-        let Some(network) = &self.network else {
+    async fn fetch_from_single_mailbox(&mut self, peer_id: PeerId) -> Result<Vec<uuid::Uuid>> {
+        let Some(network) = self.network.clone() else {
             debug!("No network handle available for single mailbox fetch");
             return Ok(vec![]);
         };
@@ -202,6 +246,7 @@ impl SyncEngine {
 
         debug!("Sync: Fetching messages from mailbox {}", peer_id);
         
+        let start_time = std::time::Instant::now();
         let retry_policy = RetryPolicy::fast_mailbox();
         
         let fetch_result = retry_policy.retry_with_jitter(|| async {
@@ -211,6 +256,8 @@ impl SyncEngine {
 
         match fetch_result {
             Ok(messages) => {
+                self.update_mailbox_performance(peer_id, true, start_time.elapsed());
+                
                 if messages.is_empty() {
                     trace!("No messages found in mailbox {}", peer_id);
                     return Ok(vec![]);
@@ -234,19 +281,30 @@ impl SyncEngine {
                 }
             }
             Err(e) => {
+                // The retry policy tried multiple times, so this represents multiple failures
+                // Update performance to reflect the severity of this failure
+                let fast_policy = RetryPolicy::fast_mailbox();
+                for _ in 0..fast_policy.max_attempts {
+                    self.update_mailbox_performance(peer_id, false, start_time.elapsed() / fast_policy.max_attempts);
+                }
+                
+                if self.should_remove_mailbox(peer_id) {
+                    self.remove_failing_mailbox(peer_id);
+                }
+                
                 error!("Failed to fetch from mailbox {} after retries: {}", peer_id, e);
                 Err(e)
             }
         }
     }
 
-    pub async fn retry_outbox(&self) -> Result<()> {
+    pub async fn retry_outbox(&mut self) -> Result<()> {
         let pending_messages = self.outbox.get_pending().await?;
         if pending_messages.is_empty() {
             return Ok(());
         }
     
-        let Some(network) = &self.network else {
+        let Some(network) = self.network.clone() else {
             debug!("No network handle available for outbox retry");
             return Ok(());
         };
@@ -289,10 +347,19 @@ impl SyncEngine {
                     let min_replicas = 2;
                     let max_attempts = candidate_mailboxes.len().min(4);
                     let mut forwarded_count = 0;
+                    let mut mailboxes_to_remove = Vec::new();
                     
                     for peer_id in candidate_mailboxes.iter().take(max_attempts) {
+                        // Skip if this mailbox was removed during iteration (due to connection failures)
+                        if !self.discovered_mailboxes.contains(peer_id) {
+                            debug!("Skipping mailbox forwarding to {} - was removed during iteration", peer_id);
+                            continue;
+                        }
+                        
+                        let start_time = std::time::Instant::now();
                         match network.mailbox_put(*peer_id, recipient_hash, encrypted_msg.clone()).await {
                             Ok(true) => {
+                                self.update_mailbox_performance(*peer_id, true, start_time.elapsed());
                                 info!("Successfully forwarded pending message {} to mailbox {} ({}/{})", 
                                       message.id, peer_id, forwarded_count + 1, min_replicas);
                                 forwarded_count += 1;
@@ -301,9 +368,28 @@ impl SyncEngine {
                                     break;
                                 }
                             }
-                            Ok(false) => debug!("Mailbox {} rejected pending message {}", peer_id, message.id),
-                            Err(err) => debug!("Failed to forward pending message {} to mailbox {}: {}", message.id, peer_id, err),
+                            Ok(false) => {
+                                self.update_mailbox_performance(*peer_id, false, start_time.elapsed());
+                                debug!("Mailbox {} rejected pending message {}", peer_id, message.id);
+                                
+                                if self.should_remove_mailbox(*peer_id) {
+                                    mailboxes_to_remove.push(*peer_id);
+                                }
+                            }
+                            Err(err) => {
+                                self.update_mailbox_performance(*peer_id, false, start_time.elapsed());
+                                debug!("Failed to forward pending message {} to mailbox {}: {}", message.id, peer_id, err);
+                                
+                                if self.should_remove_mailbox(*peer_id) {
+                                    mailboxes_to_remove.push(*peer_id);
+                                }
+                            }
                         }
+                    }
+                    
+                    // Remove failing mailboxes after iteration to avoid modifying collection during iteration
+                    for mailbox_id in mailboxes_to_remove {
+                        self.remove_failing_mailbox(mailbox_id);
                     }
                     
                     let forwarded = forwarded_count > 0;
@@ -377,6 +463,18 @@ impl SyncEngine {
                 
                 let mut new_providers = 0;
                 for provider in providers {
+                    // Skip recently failed mailboxes (blacklist for 5 minutes)
+                    if let Some(&failed_time) = self.failed_mailboxes.get(&provider) {
+                        if failed_time.elapsed().as_secs() < 300 { // 5 minutes
+                            debug!("Skipping recently failed mailbox {} (failed {} seconds ago)", 
+                                   provider, failed_time.elapsed().as_secs());
+                            continue;
+                        } else {
+                            // Remove from failed list if enough time has passed
+                            self.failed_mailboxes.remove(&provider);
+                        }
+                    }
+                    
                     if self.discovered_mailboxes.insert(provider) {
                         new_providers += 1;
                         info!("Discovered new mailbox provider: {}", provider);
@@ -439,10 +537,79 @@ impl SyncEngine {
         }
     }
 
+    fn should_remove_mailbox(&self, peer_id: PeerId) -> bool {
+        if let Some(perf) = self.mailbox_performance.get(&peer_id) {
+            // Remove if too many consecutive failures
+            if perf.consecutive_failures >= MAX_CONSECUTIVE_FAILURES {
+                return true;
+            }
+            
+            // Remove if too many failures in the recent time window
+            if let Some(last_failure) = perf.last_failure {
+                let time_since_last_failure = last_failure.elapsed().as_secs();
+                if time_since_last_failure <= FAILURE_WINDOW_SECONDS && 
+                   perf.failure_count >= MAX_FAILURES_IN_WINDOW {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    fn remove_failing_mailbox(&mut self, peer_id: PeerId) {
+        if self.discovered_mailboxes.remove(&peer_id) {
+            warn!("Removed failing mailbox {} from known mailboxes due to persistent failures", peer_id);
+            
+            // Add to failed mailboxes list to prevent immediate re-adding from DHT
+            self.failed_mailboxes.insert(peer_id, std::time::Instant::now());
+            
+            // Block the peer at transport level to stop libp2p connection attempts
+            if let Some(network) = &self.network {
+                let network_clone = network.clone();
+                let peer_id_copy = peer_id;
+                tokio::spawn(async move {
+                    if let Err(e) = network_clone.block_peer(peer_id_copy).await {
+                        error!("Failed to block peer {}: {}", peer_id_copy, e);
+                    }
+                });
+            }
+            
+            // Also remove from performance tracking to avoid memory leaks
+            self.mailbox_performance.remove(&peer_id);
+        }
+    }
+
+    fn cleanup_failing_mailboxes(&mut self) {
+        let mut mailboxes_to_remove = Vec::new();
+        
+        for peer_id in &self.discovered_mailboxes {
+            if self.should_remove_mailbox(*peer_id) {
+                mailboxes_to_remove.push(*peer_id);
+            }
+        }
+        
+        for peer_id in mailboxes_to_remove {
+            self.remove_failing_mailbox(peer_id);
+        }
+        
+        // Clean up old entries from failed_mailboxes (older than 10 minutes)
+        let mut expired_failed = Vec::new();
+        for (&peer_id, &failed_time) in &self.failed_mailboxes {
+            if failed_time.elapsed().as_secs() > 600 { // 10 minutes
+                expired_failed.push(peer_id);
+            }
+        }
+        
+        for peer_id in expired_failed {
+            self.failed_mailboxes.remove(&peer_id);
+        }
+    }
+
     pub fn update_mailbox_performance(&mut self, peer_id: PeerId, success: bool, response_time: Duration) {
         let perf = self.mailbox_performance.entry(peer_id).or_insert(MailboxPerformance {
             success_count: 0,
             failure_count: 0,
+            consecutive_failures: 0,
             last_success: None,
             last_failure: None,
             avg_response_time: Duration::from_millis(1000),
@@ -450,9 +617,11 @@ impl SyncEngine {
 
         if success {
             perf.success_count += 1;
+            perf.consecutive_failures = 0; // Reset consecutive failures on success
             perf.last_success = Some(std::time::Instant::now());
         } else {
             perf.failure_count += 1;
+            perf.consecutive_failures += 1;
             perf.last_failure = Some(std::time::Instant::now());
         }
 
@@ -462,6 +631,41 @@ impl SyncEngine {
             ((perf.avg_response_time.as_millis() as f64 * old_weight) +
              (response_time.as_millis() as f64 * new_weight)) as u64
         );
+    }
+
+    async fn test_peer_mailbox_capability(&self, peer_id: PeerId) -> Result<bool> {
+        let Some(network) = self.network.clone() else {
+            debug!("No network handle available for mailbox capability testing");
+            return Ok(false);
+        };
+
+        let recipient_hash = crate::crypto::StorageEncryption::derive_recipient_hash(
+            &self.identity.hpke_public_key()
+        );
+
+        debug!("Testing peer {} for mailbox capability", peer_id);
+        
+        // Try a simple fetch with limit 0 to test if peer responds as a mailbox
+        // This should be fast and not return any actual messages
+        let test_result = tokio::time::timeout(
+            Duration::from_secs(2), // Quick timeout for immediate testing
+            network.mailbox_fetch(peer_id, recipient_hash, 0)
+        ).await;
+
+        match test_result {
+            Ok(Ok(_)) => {
+                debug!("Peer {} confirmed as mailbox provider", peer_id);
+                Ok(true)
+            }
+            Ok(Err(e)) => {
+                trace!("Peer {} mailbox test failed: {}", peer_id, e);
+                Ok(false)
+            }
+            Err(_) => {
+                trace!("Peer {} mailbox test timed out", peer_id);
+                Ok(false)
+            }
+        }
     }
 
     async fn process_mailbox_messages(&self, messages: Vec<EncryptedMessage>) -> Result<Vec<uuid::Uuid>> {

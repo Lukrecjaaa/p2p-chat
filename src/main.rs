@@ -220,7 +220,7 @@ async fn run_client(
                     }
                 }
                 _ = outbox_retry_timer.tick() => {
-                    let engine = sync_engine_clone.lock().await;
+                    let mut engine = sync_engine_clone.lock().await;
                     if !engine.discovered_mailboxes.is_empty() {
                         if let Err(e) = engine.retry_outbox().await {
                             debug!("Fast outbox retry failed: {}", e);
