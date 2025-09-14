@@ -1,7 +1,7 @@
 use super::{UIState, UIAction};
 use super::completers::{ChatCompleter};
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use crossterm::{
     cursor,
     event::{KeyCode, KeyEvent, KeyModifiers},
@@ -226,12 +226,13 @@ impl ChatMode {
         let (x, y, width, height) = area;
         
         // Combine encrypted messages and chat messages with timestamps
-        let mut all_items: Vec<(chrono::DateTime<Utc>, String, Color)> = Vec::new();
+        let mut all_items: Vec<(chrono::DateTime<Local>, String, Color)> = Vec::new();
         
         // Add encrypted messages
         for message in &state.messages {
-            let timestamp = DateTime::<Utc>::from_timestamp(message.timestamp, 0)
-                .unwrap_or_else(|| Utc::now());
+            let timestamp = DateTime::<Utc>::from_timestamp_millis(message.timestamp)
+                .unwrap_or_else(|| Utc::now())
+                .with_timezone(&chrono::Local);
             
             // Try to decrypt message if node is available
             let content = if let Some(node) = node {
@@ -295,9 +296,10 @@ impl ChatMode {
         
         // Add chat messages (command results, system messages)
         for (timestamp, chat_msg) in &state.chat_messages {
+            let local_timestamp = timestamp.with_timezone(&chrono::Local);
             // Split multi-line messages into separate lines
             for line in chat_msg.lines() {
-                all_items.push((*timestamp, line.to_string(), Color::White));
+                all_items.push((local_timestamp, line.to_string(), Color::White));
             }
         }
         
@@ -325,8 +327,14 @@ impl ChatMode {
             if let Some((timestamp, text, color)) = all_items.get(item_idx) {
                 queue!(stdout, cursor::MoveTo(x, y + line_idx as u16))?;
                 
-                let time_str = timestamp.format("%H:%M:%S").to_string();
-                let full_text = format!("[{}] {}", time_str, text);
+                // Check if this is a history output (marked with special prefix) to skip showing timestamp
+                let full_text = if text.starts_with("__HISTORY_OUTPUT__") {
+                    // Remove the marker prefix and don't show timestamp
+                    text.strip_prefix("__HISTORY_OUTPUT__").unwrap_or(text).to_string()
+                } else {
+                    let time_str = timestamp.format("%H:%M:%S").to_string();
+                    format!("[{}] {}", time_str, text)
+                };
                 
                 // Apply horizontal scrolling (Unicode-safe)
                 let display_text = if state.horizontal_scroll_offset < full_text.chars().count() {

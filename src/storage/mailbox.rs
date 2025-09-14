@@ -122,7 +122,7 @@ impl MailboxStore for SledMailboxStore {
     }
 
     async fn cleanup_expired(&self, max_age: Duration) -> Result<()> {
-        let cutoff = Utc::now().timestamp() - max_age.as_secs() as i64;
+        let cutoff = Utc::now().timestamp_millis() - max_age.as_millis() as i64;
         let mut keys_to_remove = Vec::new();
         
         for result in self.tree.iter() {

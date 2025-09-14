@@ -241,7 +241,7 @@ async fn execute_chat_command(
                 id: uuid::Uuid::new_v4(),
                 sender: node.identity.peer_id,
                 recipient: recipient_peer_id,
-                timestamp: chrono::Utc::now().timestamp(),
+                timestamp: chrono::Utc::now().timestamp_millis(),
                 content: encrypted_content,
                 nonce: rand::random(),
             };
@@ -417,13 +417,58 @@ async fn execute_chat_command(
                     if messages.is_empty() {
                         let _ = ui_sender.send(UIEvent::ChatMessage(format!("No message history with {}", peer_id)));
                     } else {
+                        // Don't print current timestamp, only show message history
                         let mut output = format!("Message history with {} (last {} messages):", peer_id, messages.len());
                         for msg in messages {
-                            let timestamp = chrono::DateTime::<chrono::Utc>::from_timestamp(msg.timestamp, 0)
-                                .map(|dt| dt.format("%Y-%m-%d %H:%M:%S").to_string())
+                            // Convert millisecond timestamp to local timezone with requested format
+                            let timestamp = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(msg.timestamp)
+                                .map(|dt| dt.with_timezone(&chrono::Local).format("%Y-%m-%d %H:%M:%S").to_string())
                                 .unwrap_or_else(|| "Invalid timestamp".to_string());
                             
-                            let direction = if msg.sender == node.identity.peer_id { "→" } else { "←" };
+                            // Determine direction and create more descriptive labels
+                            let (direction, color_code) = if msg.sender == node.identity.peer_id {
+                                // Get recipient nickname or short ID
+                                let recipient_label = match node.friends.get_friend(&msg.recipient).await.ok().flatten() {
+                                    Some(friend) => friend.nickname.unwrap_or_else(|| {
+                                        let peer_str = msg.recipient.to_string();
+                                        if peer_str.len() > 8 {
+                                            format!("{}...", &peer_str[..8])
+                                        } else {
+                                            peer_str
+                                        }
+                                    }),
+                                    None => {
+                                        let peer_str = msg.recipient.to_string();
+                                        if peer_str.len() > 8 {
+                                            format!("{}...", &peer_str[..8])
+                                        } else {
+                                            peer_str
+                                        }
+                                    }
+                                };
+                                (format!("You -> {}", recipient_label), "\x1b[94m") // Light blue for sent
+                            } else {
+                                // Get sender nickname or short ID
+                                let sender_label = match node.friends.get_friend(&msg.sender).await.ok().flatten() {
+                                    Some(friend) => friend.nickname.unwrap_or_else(|| {
+                                        let peer_str = msg.sender.to_string();
+                                        if peer_str.len() > 8 {
+                                            format!("{}...", &peer_str[..8])
+                                        } else {
+                                            peer_str
+                                        }
+                                    }),
+                                    None => {
+                                        let peer_str = msg.sender.to_string();
+                                        if peer_str.len() > 8 {
+                                            format!("{}...", &peer_str[..8])
+                                        } else {
+                                            peer_str
+                                        }
+                                    }
+                                };
+                                (format!("{} -> You", sender_label), "\x1b[92m") // Light green for received
+                            };
                             
                             // Try to decrypt message content
                             let other_partys_pub_key = if msg.sender == node.identity.peer_id {
@@ -441,9 +486,10 @@ async fn execute_chat_command(
                                 "[Cannot decrypt - unknown peer]".to_string()
                             };
                             
-                            output.push_str(&format!("\n  {} [{}] {}", direction, timestamp, content));
+                            // Format: [timestamp] colored_direction message
+                            output.push_str(&format!("\n  [{}] {}{}\x1b[0m {}", timestamp, color_code, direction, content));
                         }
-                        let _ = ui_sender.send(UIEvent::ChatMessage(output));
+                        let _ = ui_sender.send(UIEvent::HistoryOutput(output));
                     }
                 }
                 Err(e) => {

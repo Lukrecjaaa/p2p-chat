@@ -43,6 +43,7 @@ pub enum UIEvent {
     NewLogBatch(Vec<LogEntry>), // Batched log entries for performance
     RefreshLogs, // Trigger re-filtering of logs with current level
     ChatMessage(String), // Command results, system messages, etc. for chat area
+    HistoryOutput(String), // History command output without timestamp
     KeyPress(KeyEvent),
     Resize(u16, u16),
     UpdatePeersCount(usize),
@@ -101,6 +102,24 @@ impl UIState {
 
     pub fn add_chat_message(&mut self, message: String) {
         self.chat_messages.push((Utc::now(), message));
+        // Auto-scroll to bottom in chat mode
+        if matches!(self.mode, UIMode::Chat) {
+            self.scroll_offset = 0;
+        }
+    }
+
+    pub fn add_history_output(&mut self, message: String) {
+        // Use current timestamp for proper chronological ordering, but mark as history output
+        let current_timestamp = Utc::now();
+        for line in message.lines() {
+            // Use a special marker prefix to identify history output
+            let marked_line = if line.trim().is_empty() {
+                line.to_string()
+            } else {
+                format!("__HISTORY_OUTPUT__{}", line)
+            };
+            self.chat_messages.push((current_timestamp, marked_line));
+        }
         // Auto-scroll to bottom in chat mode
         if matches!(self.mode, UIMode::Chat) {
             self.scroll_offset = 0;

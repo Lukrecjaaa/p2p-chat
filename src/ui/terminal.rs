@@ -104,6 +104,9 @@ impl TerminalUI {
             UIEvent::ChatMessage(msg) => {
                 self.state.add_chat_message(msg);
             }
+            UIEvent::HistoryOutput(msg) => {
+                self.state.add_history_output(msg);
+            }
             UIEvent::NewLogBatch(entries) => {
                 self.state.add_log_batch(entries);
             }

@@ -268,8 +268,8 @@ impl LogMode {
             if let Some(log_entry) = filtered_logs.get(log_idx) {
                 queue!(stdout, cursor::MoveTo(x, y + line_idx as u16))?;
                 
-                // Format timestamp
-                let timestamp = log_entry.timestamp.format("%H:%M:%S%.3f");
+                // Format timestamp in local timezone
+                let timestamp = log_entry.timestamp.with_timezone(&chrono::Local).format("%H:%M:%S%.3f");
                 
                 // Color based on log level
                 let level_color = match log_entry.level {
