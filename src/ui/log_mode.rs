@@ -85,6 +85,7 @@ impl LogMode {
                 } else {
                     // Scroll logs up
                     state.log_scroll_offset = state.log_scroll_offset.saturating_add(1);
+                    state.update_log_scroll_state(state.terminal_size.1 as usize);
                 }
             }
             KeyCode::Down => {
@@ -93,13 +94,20 @@ impl LogMode {
                 } else {
                     // Scroll logs down
                     state.log_scroll_offset = state.log_scroll_offset.saturating_sub(1);
+                    state.update_log_scroll_state(state.terminal_size.1 as usize);
                 }
             }
             KeyCode::PageUp => {
                 state.log_scroll_offset = state.log_scroll_offset.saturating_add(10);
+                state.update_log_scroll_state(state.terminal_size.1 as usize);
             }
             KeyCode::PageDown => {
                 state.log_scroll_offset = state.log_scroll_offset.saturating_sub(10);
+                state.update_log_scroll_state(state.terminal_size.1 as usize);
+            }
+            KeyCode::Esc => {
+                // Jump to bottom
+                state.jump_to_bottom_log();
             }
             KeyCode::Tab => {
                 // TODO: Implement log command autocompletion

@@ -66,6 +66,8 @@ pub struct UIState {
     pub scroll_offset: usize,
     pub log_scroll_offset: usize,
     pub horizontal_scroll_offset: usize,
+    pub is_at_bottom_chat: bool, // Track if user is at bottom of chat
+    pub is_at_bottom_log: bool,  // Track if user is at bottom of logs
     pub input_buffer: String,
     pub cursor_pos: usize,
     pub terminal_size: (u16, u16),
@@ -84,6 +86,8 @@ impl UIState {
             scroll_offset: 0,
             log_scroll_offset: 0,
             horizontal_scroll_offset: 0,
+            is_at_bottom_chat: true, // Start at bottom
+            is_at_bottom_log: true,  // Start at bottom
             input_buffer: String::new(),
             cursor_pos: 0,
             terminal_size: (80, 24),
@@ -94,23 +98,44 @@ impl UIState {
 
     pub fn add_message(&mut self, message: Message) {
         self.messages.push(message);
-        // Auto-scroll to bottom in chat mode
+        
+        // Handle scroll position based on user's current position
         if matches!(self.mode, UIMode::Chat) {
-            self.scroll_offset = 0;
+            if self.is_at_bottom_chat {
+                // Auto-scroll to bottom when user is already at bottom
+                self.scroll_offset = 0;
+            } else {
+                // Preserve scroll position by adjusting offset for new message
+                self.scroll_offset = self.scroll_offset.saturating_add(1);
+                // Clamp to valid bounds
+                self.update_chat_scroll_state(self.terminal_size.1 as usize);
+            }
         }
     }
 
     pub fn add_chat_message(&mut self, message: String) {
+        let line_count = message.lines().count();
         self.chat_messages.push((Utc::now(), message));
-        // Auto-scroll to bottom in chat mode
+        
+        // Handle scroll position based on user's current position
         if matches!(self.mode, UIMode::Chat) {
-            self.scroll_offset = 0;
+            if self.is_at_bottom_chat {
+                // Auto-scroll to bottom when user is already at bottom
+                self.scroll_offset = 0;
+            } else {
+                // Preserve scroll position by adjusting offset for new message lines
+                self.scroll_offset = self.scroll_offset.saturating_add(line_count);
+                // Clamp to valid bounds
+                self.update_chat_scroll_state(self.terminal_size.1 as usize);
+            }
         }
     }
 
     pub fn add_history_output(&mut self, message: String) {
         // Use current timestamp for proper chronological ordering, but mark as history output
         let current_timestamp = Utc::now();
+        let line_count = message.lines().count();
+        
         for line in message.lines() {
             // Use a special marker prefix to identify history output
             let marked_line = if line.trim().is_empty() {
@@ -120,13 +145,24 @@ impl UIState {
             };
             self.chat_messages.push((current_timestamp, marked_line));
         }
-        // Auto-scroll to bottom in chat mode
+        
+        // Handle scroll position based on user's current position
         if matches!(self.mode, UIMode::Chat) {
-            self.scroll_offset = 0;
+            if self.is_at_bottom_chat {
+                // Auto-scroll to bottom when user is already at bottom
+                self.scroll_offset = 0;
+            } else {
+                // Preserve scroll position by adjusting offset for new history lines
+                self.scroll_offset = self.scroll_offset.saturating_add(line_count);
+                // Clamp to valid bounds
+                self.update_chat_scroll_state(self.terminal_size.1 as usize);
+            }
         }
     }
 
     pub fn add_log_batch(&mut self, entries: Vec<LogEntry>) {
+        let new_entries_count = entries.len();
+        
         // Add multiple log entries efficiently
         for entry in entries {
             if self.logs.len() >= self.max_log_entries {
@@ -135,9 +171,17 @@ impl UIState {
             self.logs.push_back(entry);
         }
         
-        // Only auto-scroll in log mode to prevent chat mode disruption
+        // Handle scroll position based on user's current position
         if matches!(self.mode, UIMode::Logs { .. }) {
-            self.log_scroll_offset = 0;
+            if self.is_at_bottom_log {
+                // Auto-scroll to bottom when user is already at bottom
+                self.log_scroll_offset = 0;
+            } else {
+                // Preserve scroll position by adjusting offset for new entries
+                self.log_scroll_offset = self.log_scroll_offset.saturating_add(new_entries_count);
+                // Clamp to valid bounds
+                self.update_log_scroll_state(self.terminal_size.1 as usize);
+            }
         }
     }
 
@@ -146,6 +190,7 @@ impl UIState {
         // The filtering is handled in filtered_logs(), so we just need to reset scroll
         if matches!(self.mode, UIMode::Logs { .. }) {
             self.log_scroll_offset = 0;
+            self.is_at_bottom_log = true;
         }
     }
 
@@ -173,6 +218,65 @@ impl UIState {
         // Reset scroll when switching modes
         self.scroll_offset = 0;
         self.log_scroll_offset = 0;
+        self.is_at_bottom_chat = true;
+        self.is_at_bottom_log = true;
+    }
+
+    // Helper methods for scroll management
+    pub fn update_chat_scroll_state(&mut self, terminal_height: usize) {
+        let total_items = self.calculate_total_chat_items();
+        let visible_lines = terminal_height.saturating_sub(2); // Account for input line and status
+        let max_scroll = if total_items > visible_lines {
+            total_items.saturating_sub(visible_lines)
+        } else {
+            0
+        };
+        
+        // Clamp scroll offset to valid range
+        self.scroll_offset = self.scroll_offset.min(max_scroll);
+        
+        // Update bottom tracking
+        self.is_at_bottom_chat = self.scroll_offset == 0;
+    }
+    
+    pub fn update_log_scroll_state(&mut self, terminal_height: usize) {
+        let filtered_logs = self.filtered_logs();
+        let total_logs = filtered_logs.len();
+        let visible_lines = terminal_height.saturating_sub(2); // Account for input line and status
+        let max_scroll = if total_logs > visible_lines {
+            total_logs.saturating_sub(visible_lines)
+        } else {
+            0
+        };
+        
+        // Clamp scroll offset to valid range
+        self.log_scroll_offset = self.log_scroll_offset.min(max_scroll);
+        
+        // Update bottom tracking
+        self.is_at_bottom_log = self.log_scroll_offset == 0;
+    }
+    
+    pub fn calculate_total_chat_items(&self) -> usize {
+        // Count messages (one item each)
+        let message_count = self.messages.len();
+        
+        // Count chat message lines (split by newlines)
+        let chat_line_count: usize = self.chat_messages
+            .iter()
+            .map(|(_, msg)| msg.lines().count())
+            .sum();
+        
+        message_count + chat_line_count
+    }
+    
+    pub fn jump_to_bottom_chat(&mut self) {
+        self.scroll_offset = 0;
+        self.is_at_bottom_chat = true;
+    }
+    
+    pub fn jump_to_bottom_log(&mut self) {
+        self.log_scroll_offset = 0;
+        self.is_at_bottom_log = true;
     }
 
     pub fn filtered_logs(&self) -> Vec<&LogEntry> {

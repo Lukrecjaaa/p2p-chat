@@ -115,9 +115,15 @@ impl ChatMode {
             }
             KeyCode::PageUp => {
                 state.scroll_offset = state.scroll_offset.saturating_add(10);
+                state.update_chat_scroll_state(state.terminal_size.1 as usize);
             }
             KeyCode::PageDown => {
                 state.scroll_offset = state.scroll_offset.saturating_sub(10);
+                state.update_chat_scroll_state(state.terminal_size.1 as usize);
+            }
+            KeyCode::Esc => {
+                // Jump to bottom
+                state.jump_to_bottom_chat();
             }
             KeyCode::Tab => {
                 // Cycle through completions
