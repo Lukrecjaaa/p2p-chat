@@ -24,8 +24,8 @@ use anyhow::Result;
 use base64::prelude::*;
 use clap::Parser;
 use libp2p::Multiaddr;
-use std::str::FromStr;
 use std::net::TcpListener;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{mpsc, Mutex};
@@ -50,6 +50,12 @@ struct Cli {
 
     #[arg(long, help = "Enable storage encryption")]
     encrypt: bool,
+
+    #[arg(
+        long = "encryption-password",
+        help = "Password used for storage encryption (or set P2P_MESSENGER_PASSWORD)"
+    )]
+    encryption_password: Option<String>,
 }
 
 fn find_free_port() -> Result<u16> {
@@ -104,9 +110,37 @@ async fn main() -> Result<()> {
 
     let encryption = if cli.encrypt {
         println!("🔐 Storage encryption enabled");
-        let password = "default_password";
-        let salt = StorageEncryption::generate_salt();
-        Some(StorageEncryption::new(password, &salt)?)
+
+        let password = cli
+            .encryption_password
+            .clone()
+            .or_else(|| std::env::var("P2P_MESSENGER_PASSWORD").ok())
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Encryption password not provided. Supply --encryption-password or set P2P_MESSENGER_PASSWORD."
+                )
+            })?;
+
+        let salt_path = format!("{}/encryption_salt.bin", cli.data_dir);
+        let salt: [u8; 16] = if std::path::Path::new(&salt_path).exists() {
+            let bytes = std::fs::read(&salt_path)?;
+            if bytes.len() != 16 {
+                anyhow::bail!(
+                    "Encryption salt at '{}' has unexpected length {} (expected 16)",
+                    salt_path,
+                    bytes.len()
+                );
+            }
+            let mut salt = [0u8; 16];
+            salt.copy_from_slice(&bytes);
+            salt
+        } else {
+            let generated = StorageEncryption::generate_salt();
+            std::fs::write(&salt_path, generated)?;
+            generated
+        };
+
+        Some(StorageEncryption::new(&password, &salt)?)
     } else {
         None
     };
@@ -147,9 +181,13 @@ async fn run_mailbox_node(
 
     let mailbox_storage = mailbox_node.storage.clone();
     let (mut network_layer, _network_handle) = NetworkLayer::new_with_mailbox_storage(
-        identity, listen_addr, true, Some(mailbox_storage), vec![]
+        identity,
+        listen_addr,
+        true,
+        Some(mailbox_storage),
+        vec![],
     )?;
-    
+
     network_layer.bootstrap_dht()?;
 
     mailbox_node.run_with_network(network_layer).await
@@ -189,7 +227,7 @@ async fn run_client(
         ui_notify_tx.clone(),
     )?;
     let sync_engine = Arc::new(Mutex::new(sync_engine_instance));
-    
+
     network_layer.set_sync_event_sender(sync_event_tx.clone());
 
     let node = Arc::new(Node {
@@ -247,9 +285,9 @@ async fn run_client(
             }
         }
     });
-    
+
     network_layer.set_sync_event_sender(sync_event_tx);
-    
+
     tokio::spawn(async move {
         if let Err(e) = network_layer.run(incoming_tx).await {
             error!("Network layer error: {}", e);
