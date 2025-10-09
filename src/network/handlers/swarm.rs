@@ -30,16 +30,17 @@ impl NetworkLayer {
                 self.handle_discovery_event(discovery_event).await?;
             }
 
-            SwarmEvent::Behaviour(P2PBehaviourEvent::Ping(ping_event)) => match ping_event {
-                libp2p::ping::Event { peer, result, .. } => match result {
+            SwarmEvent::Behaviour(P2PBehaviourEvent::Ping(ping_event)) => {
+                let libp2p::ping::Event { peer, result, .. } = ping_event;
+                match result {
                     Ok(rtt) => {
                         trace!("Ping to {} successful: RTT is {:?}", peer, rtt);
                     }
                     Err(failure) => {
                         warn!("Ping to {} failed: {:?}", peer, failure);
                     }
-                },
-            },
+                }
+            }
 
             SwarmEvent::ConnectionEstablished { peer_id, .. } => {
                 info!("Connection established with peer: {}", peer_id);
