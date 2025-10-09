@@ -17,7 +17,7 @@ impl MailboxStore for SledMailboxStore {
 
         // Enforce storage limits by cleaning up old messages if necessary
         let mut existing: Vec<(Vec<u8>, i64, u64)> = Vec::new();
-        for entry in self.tree.scan_prefix(&recipient_hash) {
+        for entry in self.tree.scan_prefix(recipient_hash) {
             match entry {
                 Ok((key, value)) => match self.deserialize_message(&value) {
                     Ok(existing_msg) => {
@@ -61,7 +61,7 @@ impl MailboxStore for SledMailboxStore {
     ) -> Result<Vec<EncryptedMessage>> {
         let mut messages = Vec::new();
 
-        for result in self.tree.scan_prefix(&recipient_hash) {
+        for result in self.tree.scan_prefix(recipient_hash) {
             match result {
                 Ok((key, value)) => match self.deserialize_message(&value) {
                     Ok(msg) => {
