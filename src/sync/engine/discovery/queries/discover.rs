@@ -1,14 +1,9 @@
-use std::time::{Duration, Instant};
-
-use anyhow::Result;
-use libp2p::kad;
-use tracing::{debug, error, info, trace};
-
 use crate::crypto::StorageEncryption;
 use crate::mailbox::{make_mailbox_provider_key, make_recipient_mailbox_key};
-
-use super::super::events::DhtQueryResult;
-use super::super::{DhtQueryState, SyncEngine};
+use crate::sync::engine::{DhtQueryState, SyncEngine};
+use anyhow::Result;
+use std::time::{Duration, Instant};
+use tracing::{debug, error, trace};
 
 impl SyncEngine {
     pub async fn discover_mailboxes(&mut self) -> Result<()> {
@@ -112,97 +107,5 @@ impl SyncEngine {
         }
 
         Ok(())
-    }
-
-    pub async fn handle_dht_query_result(
-        &mut self,
-        key: kad::RecordKey,
-        result: DhtQueryResult,
-    ) -> Result<()> {
-        match result {
-            DhtQueryResult::ProvidersFound {
-                providers,
-                finished,
-            } => {
-                let key_str = String::from_utf8_lossy(key.as_ref());
-                if !providers.is_empty() {
-                    info!(
-                        "Found {} providers for key {} (finished: {})",
-                        providers.len(),
-                        key_str,
-                        finished
-                    );
-                }
-
-                let mut new_providers = 0;
-                for provider in providers {
-                    if !self.backoff_manager.can_attempt(&provider) {
-                        if let Some(retry_time) = self.backoff_manager.time_until_retry(&provider) {
-                            debug!(
-                                "Skipping backed-off mailbox {} (retry in {:?})",
-                                provider, retry_time
-                            );
-                        }
-                        continue;
-                    }
-
-                    if self.discovered_mailboxes.insert(provider) {
-                        new_providers += 1;
-                        info!("Discovered new mailbox provider: {}", provider);
-                        self.backoff_manager.record_success(&provider);
-                    }
-                }
-
-                if new_providers > 0 {
-                    info!(
-                        "Added {} new mailbox provider(s) to the pool.",
-                        new_providers
-                    );
-
-                    if let Err(e) = self.retry_outbox().await {
-                        error!(
-                            "Failed to retry outbox after discovering new mailboxes: {}",
-                            e
-                        );
-                    }
-                }
-            }
-            DhtQueryResult::QueryFailed { error } => {
-                let key_str = String::from_utf8_lossy(key.as_ref());
-                trace!("DHT query failed for key {}: {}", key_str, error);
-            }
-        }
-        Ok(())
-    }
-
-    pub(crate) fn cleanup_stale_dht_queries(&mut self) {
-        let stale_timeout = Duration::from_secs(60);
-        let mut stale_queries = Vec::new();
-
-        for (&query_id, query_state) in &self.pending_dht_queries {
-            if query_state.started_at.elapsed() > stale_timeout {
-                stale_queries.push(query_id);
-            }
-        }
-
-        for query_id in stale_queries {
-            if let Some(query_state) = self.pending_dht_queries.remove(&query_id) {
-                trace!(
-                    "Removing stale DHT query {:?} (age: {:?}, received_results: {})",
-                    query_id,
-                    query_state.started_at.elapsed(),
-                    query_state.received_results
-                );
-            }
-        }
-
-        self.backoff_manager
-            .cleanup_old_entries(Duration::from_secs(3600));
-    }
-
-    fn has_pending_query_for(&self, key: &kad::RecordKey) -> bool {
-        self.pending_dht_queries
-            .values()
-            .any(|state| state.key == *key)
     }
 }
