@@ -157,7 +157,7 @@ impl ChatMode {
         input: &str,
         action_tx: &mpsc::UnboundedSender<UIAction>,
     ) -> Result<()> {
-        let parts: Vec<&str> = input.trim().split_whitespace().collect();
+        let parts: Vec<&str> = input.split_whitespace().collect();
         if parts.is_empty() {
             return Ok(());
         }

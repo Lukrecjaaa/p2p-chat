@@ -5,7 +5,7 @@ use tracing::{debug, Level};
 
 impl LogMode {
     pub(crate) async fn execute_log_command(&self, input: &str, state: &mut UIState) -> Result<()> {
-        let parts: Vec<&str> = input.trim().split_whitespace().collect();
+        let parts: Vec<&str> = input.split_whitespace().collect();
         if parts.is_empty() {
             return Ok(());
         }
