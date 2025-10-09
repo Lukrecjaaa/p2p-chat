@@ -59,8 +59,8 @@ impl UIState {
                         && filter
                             .as_ref()
                             .map(|f| {
-                                if f.starts_with('-') {
-                                    !entry.module.contains(&f[1..])
+                                if let Some(exclusion) = f.strip_prefix('-') {
+                                    !entry.module.contains(exclusion)
                                 } else {
                                     entry.module.contains(f) || entry.message.contains(f)
                                 }

@@ -118,7 +118,7 @@ impl TerminalUI {
         if matches!(self.state.mode, UIMode::Chat) {
             if let Some(suggestion) = self.chat_mode.get_current_suggestion() {
                 if suggestion.starts_with(&self.state.input_buffer)
-                    && suggestion != &self.state.input_buffer
+                    && suggestion != self.state.input_buffer
                 {
                     let input_char_count = self.state.input_buffer.chars().count();
                     let hint: String = suggestion.chars().skip(input_char_count).collect();
