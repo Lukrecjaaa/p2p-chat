@@ -32,13 +32,6 @@ pub struct EncryptedMessage {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum DeliveryStatus {
-    Pending,
-    Delivered,
-    Failed(String),
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ChatRequest {
     SendMessage { message: Message },
 }
