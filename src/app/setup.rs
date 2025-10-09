@@ -80,7 +80,7 @@ fn print_identity_info(identity: &Arc<Identity>) {
     println!("  Peer ID: {}", identity.peer_id);
     println!(
         "  E2E Public Key: {}",
-        BASE64_STANDARD.encode(&identity.hpke_public_key())
+        BASE64_STANDARD.encode(identity.hpke_public_key())
     );
     println!();
 }

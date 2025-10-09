@@ -8,7 +8,7 @@ pub async fn show_info(context: &CommandContext) -> Result<()> {
     let output = format!(
         "Your Identity:\n  Peer ID: {}\n  E2E Public Key: {}",
         context.node().identity.peer_id,
-        BASE64_STANDARD.encode(&context.node().identity.hpke_public_key())
+        BASE64_STANDARD.encode(context.node().identity.hpke_public_key())
     );
     context.emit_chat(output);
     Ok(())
