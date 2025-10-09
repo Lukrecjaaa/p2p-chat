@@ -298,24 +298,26 @@ async fn run_client(
     let seen_clone = seen.clone();
     tokio::spawn(async move {
         while let Some(message) = incoming_rx.recv().await {
-            match seen_clone.is_seen(&message.id).await {
-                Ok(true) => {
-                    debug!("Received duplicate message {}, ignoring", message.id);
-                    continue;
-                }
-                Ok(false) => {
-                    if let Err(e) = seen_clone.mark_seen(message.id).await {
-                        error!("Failed to mark message {} as seen: {}", message.id, e);
-                    }
-                }
+            let already_seen = match seen_clone.is_seen(&message.id).await {
+                Ok(flag) => flag,
                 Err(e) => {
                     error!("Failed to check if message {} was seen: {}", message.id, e);
+                    false
                 }
+            };
+
+            if already_seen {
+                debug!("Received duplicate message {}, ignoring", message.id);
+                continue;
             }
 
             if let Err(e) = node_clone.history.store_message(message.clone()).await {
                 error!("Failed to store incoming message {}: {}", message.id, e);
                 continue;
+            }
+
+            if let Err(e) = seen_clone.mark_seen(message.id).await {
+                error!("Failed to mark message {} as seen: {}", message.id, e);
             }
 
             let _ = node_clone
