@@ -37,9 +37,10 @@ pub async fn run_tui(
     terminal_ui.set_node(node.clone());
     terminal_ui.set_log_buffer(log_buffer.clone());
 
+    const INITIAL_HISTORY_LIMIT: usize = 10;
     if let Ok(initial_messages) = node
         .history
-        .get_recent_messages(&node.identity.peer_id, 200)
+        .get_recent_messages(&node.identity.peer_id, INITIAL_HISTORY_LIMIT)
         .await
     {
         terminal_ui.preload_messages(initial_messages);

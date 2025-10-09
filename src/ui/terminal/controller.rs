@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
+use chrono::{Duration, Utc};
 use tokio::sync::mpsc;
 use tracing::{debug, error};
 
@@ -52,7 +53,29 @@ impl TerminalUI {
     }
 
     pub fn preload_messages(&mut self, messages: Vec<Message>) {
+        let count = messages.len();
+        let earliest_timestamp = messages
+            .iter()
+            .filter_map(|msg| chrono::DateTime::<Utc>::from_timestamp_millis(msg.timestamp))
+            .min();
+
         self.state.replace_messages(messages);
+
+        if count > 0 {
+            if let Some(earliest) = earliest_timestamp {
+                let header_ts = earliest
+                    .checked_sub_signed(Duration::milliseconds(1))
+                    .unwrap_or(earliest);
+                self.state.chat_messages.push((
+                    header_ts,
+                    format!(
+                        "__HISTORY_OUTPUT__History: last {} message{}",
+                        count,
+                        if count == 1 { "" } else { "s" }
+                    ),
+                ));
+            }
+        }
     }
 
     pub async fn run(&mut self) -> Result<()> {
