@@ -36,6 +36,30 @@ pub struct SyncEngine {
     pub ui_notify_tx: mpsc::UnboundedSender<UiNotification>,
 }
 
+#[derive(Clone)]
+pub struct SyncStores {
+    pub friends: Arc<dyn FriendsStore + Send + Sync>,
+    pub outbox: Arc<dyn OutboxStore + Send + Sync>,
+    pub history: Arc<dyn MessageStore + Send + Sync>,
+    pub seen: Arc<dyn SeenTracker + Send + Sync>,
+}
+
+impl SyncStores {
+    pub fn new(
+        friends: Arc<dyn FriendsStore + Send + Sync>,
+        outbox: Arc<dyn OutboxStore + Send + Sync>,
+        history: Arc<dyn MessageStore + Send + Sync>,
+        seen: Arc<dyn SeenTracker + Send + Sync>,
+    ) -> Self {
+        Self {
+            friends,
+            outbox,
+            history,
+            seen,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct DhtQueryState {
     pub key: kad::RecordKey,
@@ -47,10 +71,7 @@ impl SyncEngine {
     pub fn new_with_network(
         interval: Duration,
         identity: Arc<Identity>,
-        friends: Arc<dyn FriendsStore + Send + Sync>,
-        outbox: Arc<dyn OutboxStore + Send + Sync>,
-        history: Arc<dyn MessageStore + Send + Sync>,
-        seen: Arc<dyn SeenTracker + Send + Sync>,
+        stores: SyncStores,
         network: NetworkHandle,
         ui_notify_tx: mpsc::UnboundedSender<UiNotification>,
     ) -> Result<(
@@ -58,6 +79,12 @@ impl SyncEngine {
         mpsc::UnboundedSender<SyncEvent>,
         mpsc::UnboundedReceiver<SyncEvent>,
     )> {
+        let SyncStores {
+            friends,
+            outbox,
+            history,
+            seen,
+        } = stores;
         let (event_tx, event_rx) = mpsc::unbounded_channel();
         let engine = Self {
             interval: if interval.is_zero() {

@@ -4,7 +4,7 @@ use crate::network::NetworkLayer;
 use crate::storage::{
     MessageHistory, SeenTracker, SledFriendsStore, SledOutboxStore, SledSeenTracker,
 };
-use crate::sync::SyncEngine;
+use crate::sync::{SyncEngine, SyncStores};
 use crate::types::Message;
 use crate::ui::run_tui;
 use anyhow::Result;
@@ -38,13 +38,17 @@ pub async fn run(
     let (incoming_tx, mut incoming_rx) = mpsc::unbounded_channel::<Message>();
     let (ui_notify_tx, ui_notify_rx) = mpsc::unbounded_channel::<UiNotification>();
 
-    let (sync_engine_instance, sync_event_tx, mut sync_event_rx) = SyncEngine::new_with_network(
-        Duration::from_secs(30),
-        identity.clone(),
+    let sync_stores = SyncStores::new(
         friends.clone(),
         outbox.clone(),
         history.clone(),
         seen.clone(),
+    );
+
+    let (sync_engine_instance, sync_event_tx, mut sync_event_rx) = SyncEngine::new_with_network(
+        Duration::from_secs(30),
+        identity.clone(),
+        sync_stores,
         network_handle.clone(),
         ui_notify_tx.clone(),
     )?;
