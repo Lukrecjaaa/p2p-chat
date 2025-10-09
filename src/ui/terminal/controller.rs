@@ -6,6 +6,7 @@ use tracing::{debug, error};
 
 use crate::cli::commands::Node;
 use crate::logging::LogBuffer;
+use crate::types::Message;
 use crate::ui::{ChatMode, LogMode, UIAction, UIEvent, UIState};
 
 pub struct TerminalUI {
@@ -48,6 +49,10 @@ impl TerminalUI {
 
     pub fn update_discovered_peers(&mut self, peers: Vec<String>) {
         self.chat_mode.update_discovered_peers(peers);
+    }
+
+    pub fn preload_messages(&mut self, messages: Vec<Message>) {
+        self.state.replace_messages(messages);
     }
 
     pub async fn run(&mut self) -> Result<()> {

@@ -14,6 +14,7 @@ pub trait MessageStore {
         peer: &PeerId,
         limit: usize,
     ) -> Result<Vec<Message>>;
+    async fn get_recent_messages(&self, own_id: &PeerId, limit: usize) -> Result<Vec<Message>>;
 }
 
 pub struct MessageHistory {
@@ -97,6 +98,40 @@ impl MessageStore for MessageHistory {
 
         // Reverse again to get chronological order
         messages.reverse();
+        Ok(messages)
+    }
+
+    async fn get_recent_messages(&self, own_id: &PeerId, limit: usize) -> Result<Vec<Message>> {
+        let tree = self.tree.clone();
+        let encryption = self.encryption.clone();
+        let own_id = *own_id;
+
+        let mut messages: Vec<Message> =
+            tokio::task::spawn_blocking(move || -> Result<Vec<Message>> {
+                let mut collected = Vec::new();
+                for result in tree.iter() {
+                    let (_key, value) = result?;
+                    let decrypted = if let Some(ref enc) = encryption {
+                        enc.decrypt_value(&value)?
+                    } else {
+                        value.to_vec()
+                    };
+                    let message: Message = serde_json::from_slice(&decrypted)?;
+                    if message.sender == own_id || message.recipient == own_id {
+                        collected.push(message);
+                    }
+                }
+                Ok(collected)
+            })
+            .await??;
+
+        messages.sort_by_key(|msg| (msg.timestamp, msg.nonce));
+
+        if messages.len() > limit {
+            let drop_count = messages.len() - limit;
+            messages.drain(0..drop_count);
+        }
+
         Ok(messages)
     }
 }

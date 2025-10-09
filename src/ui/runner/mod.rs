@@ -37,6 +37,14 @@ pub async fn run_tui(
     terminal_ui.set_node(node.clone());
     terminal_ui.set_log_buffer(log_buffer.clone());
 
+    if let Ok(initial_messages) = node
+        .history
+        .get_recent_messages(&node.identity.peer_id, 200)
+        .await
+    {
+        terminal_ui.preload_messages(initial_messages);
+    }
+
     // Load friends for autocompletion
     let friends = match node.friends.list_friends().await {
         Ok(friends_list) => friends_list

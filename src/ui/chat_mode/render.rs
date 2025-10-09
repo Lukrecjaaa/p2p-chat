@@ -22,8 +22,8 @@ impl ChatMode {
 
         for entry in &state.messages {
             let message = &entry.message;
-            let message_timestamp = DateTime::<Utc>::from_timestamp_millis(message.timestamp)
-                .unwrap_or_else(Utc::now);
+            let message_timestamp =
+                DateTime::<Utc>::from_timestamp_millis(message.timestamp).unwrap_or_else(Utc::now);
             let display_timestamp = message_timestamp.with_timezone(&Local);
 
             let content = if let Some(node) = node {

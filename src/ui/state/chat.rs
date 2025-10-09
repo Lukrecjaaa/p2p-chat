@@ -7,6 +7,9 @@ use super::{ChatMessageEntry, UIState};
 
 impl UIState {
     pub fn add_message(&mut self, message: Message) {
+        if self.contains_message(&message.id) {
+            return;
+        }
         self.messages.push(ChatMessageEntry {
             message,
             received_at: Utc::now(),

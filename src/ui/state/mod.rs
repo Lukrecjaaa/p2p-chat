@@ -6,6 +6,7 @@ use std::collections::VecDeque;
 
 use chrono::{DateTime, Utc};
 use tracing::Level;
+use uuid::Uuid;
 
 use crate::types::Message;
 
@@ -73,6 +74,26 @@ impl UIState {
         self.log_scroll_offset = 0;
         self.is_at_bottom_chat = true;
         self.is_at_bottom_log = true;
+    }
+
+    pub fn replace_messages(&mut self, messages: Vec<Message>) {
+        self.messages.clear();
+        for message in messages {
+            let arrival = chrono::DateTime::<Utc>::from_timestamp_millis(message.timestamp)
+                .unwrap_or_else(Utc::now);
+            self.messages.push(ChatMessageEntry {
+                message,
+                received_at: arrival,
+            });
+        }
+        self.scroll_offset = 0;
+        self.is_at_bottom_chat = true;
+    }
+
+    fn contains_message(&self, message_id: &Uuid) -> bool {
+        self.messages
+            .iter()
+            .any(|entry| entry.message.id == *message_id)
     }
 }
 
