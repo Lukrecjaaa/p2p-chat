@@ -29,7 +29,7 @@ impl ChatCompleter {
     pub fn update_friends(&mut self, friends: Vec<String>) {
         self.friends = friends;
     }
-    
+
     pub fn update_discovered_peers(&mut self, peers: Vec<String>) {
         self.discovered_peers = peers;
     }
@@ -41,7 +41,7 @@ impl ChatCompleter {
         }
 
         let parts: Vec<&str> = trimmed.split_whitespace().collect();
-        
+
         match parts.len() {
             1 => {
                 // Completing command
@@ -80,8 +80,9 @@ impl ChatCompleter {
 
                         // Add fuzzy matches
                         for friend in &self.friends {
-                            if !friend.to_lowercase().starts_with(&prefix) && 
-                               self.fuzzy_match(&prefix, &friend.to_lowercase()) {
+                            if !friend.to_lowercase().starts_with(&prefix)
+                                && self.fuzzy_match(&prefix, &friend.to_lowercase())
+                            {
                                 suggestions.push(format!("{} {}", parts[0], friend));
                             }
                         }
@@ -92,19 +93,19 @@ impl ChatCompleter {
                         // For 'friend' command, suggest discovered peer IDs that match the prefix
                         let prefix = parts[1].to_lowercase();
                         let mut suggestions = Vec::new();
-                        
+
                         // Suggest discovered peers that start with the typed prefix
                         for peer_id in &self.discovered_peers {
                             if peer_id.to_lowercase().starts_with(&prefix) {
                                 suggestions.push(format!("{} {}", parts[0], peer_id));
                             }
                         }
-                        
+
                         // If no matches, show placeholder
                         if suggestions.is_empty() {
                             suggestions.push(format!("{} <peer_id>", parts[0]));
                         }
-                        
+
                         suggestions
                     }
                     _ => Vec::new(),
@@ -129,7 +130,10 @@ impl ChatCompleter {
                 match parts[0] {
                     "friend" => {
                         // Suggest nickname placeholder
-                        vec![format!("{} {} {} <optional_nickname>", parts[0], parts[1], parts[2])]
+                        vec![format!(
+                            "{} {} {} <optional_nickname>",
+                            parts[0], parts[1], parts[2]
+                        )]
                     }
                     _ => Vec::new(),
                 }
@@ -157,4 +161,3 @@ impl ChatCompleter {
         current_pattern.is_none()
     }
 }
-
