@@ -1,5 +1,5 @@
 pub mod backoff;
-pub mod periodic;
+pub mod engine;
 pub mod retry;
 
-pub use periodic::SyncEngine;
+pub use engine::{DhtQueryResult, SyncEngine, SyncEvent};

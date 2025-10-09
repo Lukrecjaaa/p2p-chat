@@ -1,15 +1,14 @@
 use crate::crypto::Identity;
 use crate::net::{build_transport, ChatBehaviour, DiscoveryBehaviour, MailboxBehaviour};
 use crate::storage::{MailboxStore, SledMailboxStore};
-use crate::sync::periodic::SyncEvent;
+use crate::sync::SyncEvent;
 use crate::types::{
     ChatRequest, ChatResponse, EncryptedMessage, MailboxRequest, MailboxResponse, Message,
 };
 use anyhow::{anyhow, Result};
 use futures::StreamExt;
 use libp2p::{
-    kad,
-    ping,
+    kad, ping,
     request_response::{self, OutboundRequestId, ResponseChannel},
     swarm::{NetworkBehaviour, Swarm, SwarmEvent},
     Multiaddr, PeerId,
@@ -102,7 +101,7 @@ impl NetworkHandle {
             _ => Err(anyhow!("Unexpected response")),
         }
     }
-    
+
     pub async fn get_connected_peers(&self) -> Result<Vec<PeerId>> {
         let (tx, rx) = oneshot::channel();
         self.command_sender
@@ -114,30 +113,71 @@ impl NetworkHandle {
             _ => Err(anyhow!("Unexpected response")),
         }
     }
-    pub async fn mailbox_put( &self, peer_id: PeerId, recipient: [u8; 32], message: EncryptedMessage) -> Result<bool> {
+    pub async fn mailbox_put(
+        &self,
+        peer_id: PeerId,
+        recipient: [u8; 32],
+        message: EncryptedMessage,
+    ) -> Result<bool> {
         let (tx, rx) = oneshot::channel();
-        self.command_sender.send(NetworkCommand::MailboxPut { peer_id, recipient, message, response: tx, })?;
-        match rx.await? { NetworkResponse::MailboxPutResult { success } => Ok(success), NetworkResponse::Error(e) => Err(anyhow!(e)), _ => Err(anyhow!("Unexpected response")), }
+        self.command_sender.send(NetworkCommand::MailboxPut {
+            peer_id,
+            recipient,
+            message,
+            response: tx,
+        })?;
+        match rx.await? {
+            NetworkResponse::MailboxPutResult { success } => Ok(success),
+            NetworkResponse::Error(e) => Err(anyhow!(e)),
+            _ => Err(anyhow!("Unexpected response")),
+        }
     }
-    pub async fn mailbox_fetch( &self, peer_id: PeerId, recipient: [u8; 32], limit: usize) -> Result<Vec<EncryptedMessage>> {
+    pub async fn mailbox_fetch(
+        &self,
+        peer_id: PeerId,
+        recipient: [u8; 32],
+        limit: usize,
+    ) -> Result<Vec<EncryptedMessage>> {
         let (tx, rx) = oneshot::channel();
-        self.command_sender.send(NetworkCommand::MailboxFetch { peer_id, recipient, limit, response: tx, })?;
-        match rx.await? { NetworkResponse::MailboxMessages { messages } => Ok(messages), NetworkResponse::Error(e) => Err(anyhow!(e)), _ => Err(anyhow!("Unexpected response")), }
+        self.command_sender.send(NetworkCommand::MailboxFetch {
+            peer_id,
+            recipient,
+            limit,
+            response: tx,
+        })?;
+        match rx.await? {
+            NetworkResponse::MailboxMessages { messages } => Ok(messages),
+            NetworkResponse::Error(e) => Err(anyhow!(e)),
+            _ => Err(anyhow!("Unexpected response")),
+        }
     }
-    pub async fn mailbox_ack( &self, peer_id: PeerId, recipient: [u8; 32], msg_ids: Vec<uuid::Uuid>) -> Result<usize> {
+    pub async fn mailbox_ack(
+        &self,
+        peer_id: PeerId,
+        recipient: [u8; 32],
+        msg_ids: Vec<uuid::Uuid>,
+    ) -> Result<usize> {
         let (tx, rx) = oneshot::channel();
-        self.command_sender.send(NetworkCommand::MailboxAck { peer_id, recipient, msg_ids, response: tx, })?;
-        match rx.await? { NetworkResponse::MailboxAckResult { deleted } => Ok(deleted), NetworkResponse::Error(e) => Err(anyhow!(e)), _ => Err(anyhow!("Unexpected response")), }
+        self.command_sender.send(NetworkCommand::MailboxAck {
+            peer_id,
+            recipient,
+            msg_ids,
+            response: tx,
+        })?;
+        match rx.await? {
+            NetworkResponse::MailboxAckResult { deleted } => Ok(deleted),
+            NetworkResponse::Error(e) => Err(anyhow!(e)),
+            _ => Err(anyhow!("Unexpected response")),
+        }
     }
 
     pub async fn start_dht_provider_query(&self, key: kad::RecordKey) -> Result<kad::QueryId> {
         let (tx, rx) = oneshot::channel();
-        self.command_sender.send(NetworkCommand::StartDhtProviderQuery { key, response: tx })?;
+        self.command_sender
+            .send(NetworkCommand::StartDhtProviderQuery { key, response: tx })?;
         rx.await?
     }
-
 }
-
 
 impl NetworkLayer {
     pub fn new(
@@ -148,7 +188,7 @@ impl NetworkLayer {
     ) -> Result<(Self, NetworkHandle)> {
         Self::new_with_mailbox_storage(identity, listen_addr, is_mailbox, None, bootstrap_nodes)
     }
-    
+
     pub fn new_with_mailbox_storage(
         identity: Arc<Identity>,
         listen_addr: Multiaddr,
@@ -227,7 +267,7 @@ impl NetworkLayer {
 
         Ok((network_layer, handle))
     }
-    
+
     pub fn set_sync_event_sender(&mut self, sender: mpsc::UnboundedSender<SyncEvent>) {
         self.sync_event_tx = Some(sender);
     }
@@ -241,32 +281,32 @@ impl NetworkLayer {
         let key = make_mailbox_provider_key();
         self.swarm.behaviour_mut().discovery.start_providing(key)
     }
-    
+
     pub fn start_providing_for_recipient(&mut self, recipient_hash: [u8; 32]) -> Result<()> {
         use crate::mailbox::make_recipient_mailbox_key;
         let key = make_recipient_mailbox_key(recipient_hash);
         self.swarm.behaviour_mut().discovery.start_providing(key)
     }
-    
+
     fn cleanup_blocked_peers(&mut self) {
         let block_duration = Duration::from_secs(600); // 10 minutes
         let mut expired_peers = Vec::new();
-        
+
         for (&peer_id, &blocked_time) in &self.blocked_peers {
             if blocked_time.elapsed() > block_duration {
                 expired_peers.push(peer_id);
             }
         }
-        
+
         for peer_id in expired_peers {
             info!("Unblocking peer {} after timeout", peer_id);
             self.blocked_peers.remove(&peer_id);
         }
     }
-    
+
     pub async fn run(&mut self, incoming_messages: mpsc::UnboundedSender<Message>) -> Result<()> {
         info!("Starting network event loop");
-        
+
         let mut cleanup_timer = tokio::time::interval(Duration::from_secs(300)); // Cleanup every 5 minutes
 
         loop {
@@ -290,7 +330,7 @@ impl NetworkLayer {
                         }
                     }
                 }
-                
+
                 _ = cleanup_timer.tick() => {
                     self.cleanup_blocked_peers();
                 }
@@ -323,20 +363,16 @@ impl NetworkLayer {
                 self.handle_discovery_event(discovery_event).await?;
             }
 
-            SwarmEvent::Behaviour(P2PBehaviourEvent::Ping(ping_event)) => {
-                match ping_event {
-                    ping::Event { peer, result, .. } => {
-                        match result {
-                            Ok(rtt) => {
-                                trace!("Ping to {} successful: RTT is {:?}", peer, rtt);
-                            }
-                            Err(failure) => {
-                                warn!("Ping to {} failed: {:?}", peer, failure);
-                            }
-                        }
+            SwarmEvent::Behaviour(P2PBehaviourEvent::Ping(ping_event)) => match ping_event {
+                ping::Event { peer, result, .. } => match result {
+                    Ok(rtt) => {
+                        trace!("Ping to {} successful: RTT is {:?}", peer, rtt);
                     }
-                }
-            }
+                    Err(failure) => {
+                        warn!("Ping to {} failed: {:?}", peer, failure);
+                    }
+                },
+            },
 
             SwarmEvent::ConnectionEstablished { peer_id, .. } => {
                 info!("Connection established with peer: {}", peer_id);
@@ -355,7 +391,7 @@ impl NetworkLayer {
 
             SwarmEvent::OutgoingConnectionError { peer_id, error, .. } => {
                 warn!("Outgoing connection error to {:?}: {}", peer_id, error);
-                
+
                 // If this connection failure is for a known mailbox, notify the sync engine
                 if let Some(peer_id) = peer_id {
                     if let Some(ref sync_tx) = self.sync_event_tx {
@@ -399,8 +435,10 @@ impl NetworkLayer {
             } => {
                 warn!("Chat request failed: {:?}", error);
                 if let Some(sender) = self.pending_requests.remove(&request_id) {
-                    let _ = sender
-                        .send(NetworkResponse::Error(format!("Request failed: {:?}", error)));
+                    let _ = sender.send(NetworkResponse::Error(format!(
+                        "Request failed: {:?}",
+                        error
+                    )));
                 }
             }
             request_response::Event::InboundFailure { error, .. } => {
@@ -424,17 +462,21 @@ impl NetworkLayer {
 
                 if let Err(e) = incoming_messages.send(message.clone()) {
                     error!("Failed to forward incoming message: {}", e);
-                    let _ = self
-                        .swarm
-                        .behaviour_mut()
-                        .chat
-                        .send_response(channel, ChatResponse::MessageResult { success: false, message_id: None });
+                    let _ = self.swarm.behaviour_mut().chat.send_response(
+                        channel,
+                        ChatResponse::MessageResult {
+                            success: false,
+                            message_id: None,
+                        },
+                    );
                 } else {
-                    let _ = self
-                        .swarm
-                        .behaviour_mut()
-                        .chat
-                        .send_response(channel, ChatResponse::MessageResult { success: true, message_id: Some(message.id) });
+                    let _ = self.swarm.behaviour_mut().chat.send_response(
+                        channel,
+                        ChatResponse::MessageResult {
+                            success: true,
+                            message_id: Some(message.id),
+                        },
+                    );
                 }
             }
         }
@@ -449,7 +491,10 @@ impl NetworkLayer {
     ) -> Result<()> {
         if let Some(sender) = self.pending_requests.remove(&request_id) {
             match response {
-                ChatResponse::MessageResult { success, message_id: _ } => {
+                ChatResponse::MessageResult {
+                    success,
+                    message_id: _,
+                } => {
                     if success {
                         let _ = sender.send(NetworkResponse::MessageSent);
                     } else {
@@ -487,8 +532,10 @@ impl NetworkLayer {
             } => {
                 warn!("Mailbox request failed: {:?}", error);
                 if let Some(sender) = self.pending_requests.remove(&request_id) {
-                    let _ = sender
-                        .send(NetworkResponse::Error(format!("Request failed: {:?}", error)));
+                    let _ = sender.send(NetworkResponse::Error(format!(
+                        "Request failed: {:?}",
+                        error
+                    )));
                 }
             }
             request_response::Event::InboundFailure { error, .. } => {
@@ -512,15 +559,25 @@ impl NetworkLayer {
                 MailboxRequest::Put { recipient, message } => {
                     match storage.store_message(recipient, message).await {
                         Ok(()) => {
-                            info!("Successfully stored message in mailbox for recipient: {:?}", &recipient[..8]);
-                            
+                            info!(
+                                "Successfully stored message in mailbox for recipient: {:?}",
+                                &recipient[..8]
+                            );
+
                             // Register as provider for this specific recipient for better discovery
                             if let Err(e) = self.start_providing_for_recipient(recipient) {
-                                debug!("Failed to register as provider for recipient {:?}: {}", &recipient[..8], e);
+                                debug!(
+                                    "Failed to register as provider for recipient {:?}: {}",
+                                    &recipient[..8],
+                                    e
+                                );
                             } else {
-                                debug!("Registered as provider for recipient: {:?}", &recipient[..8]);
+                                debug!(
+                                    "Registered as provider for recipient: {:?}",
+                                    &recipient[..8]
+                                );
                             }
-                            
+
                             MailboxResponse::PutResult { success: true }
                         }
                         Err(e) => {
@@ -532,7 +589,11 @@ impl NetworkLayer {
                 MailboxRequest::Fetch { recipient, limit } => {
                     match storage.fetch_messages(recipient, limit).await {
                         Ok(messages) => {
-                            info!("Fetched {} messages for recipient: {:?}", messages.len(), &recipient[..8]);
+                            info!(
+                                "Fetched {} messages for recipient: {:?}",
+                                messages.len(),
+                                &recipient[..8]
+                            );
                             MailboxResponse::Messages { items: messages }
                         }
                         Err(e) => {
@@ -544,8 +605,12 @@ impl NetworkLayer {
                 MailboxRequest::Ack { recipient, msg_ids } => {
                     match storage.delete_messages(recipient, msg_ids).await {
                         Ok(deleted) => {
-                            info!("Deleted {} messages for recipient: {:?}", deleted, &recipient[..8]);
-                            
+                            info!(
+                                "Deleted {} messages for recipient: {:?}",
+                                deleted,
+                                &recipient[..8]
+                            );
+
                             // Check if there are any remaining messages for this recipient
                             // If not, we should stop advertising ourselves as having messages
                             match storage.fetch_messages(recipient, 1).await {
@@ -563,7 +628,7 @@ impl NetworkLayer {
                                     debug!("Failed to check remaining messages for cleanup: {}", e);
                                 }
                             }
-                            
+
                             MailboxResponse::AckResult { deleted }
                         }
                         Err(e) => {
@@ -623,18 +688,25 @@ impl NetworkLayer {
                 libp2p::mdns::Event::Discovered(list) => {
                     for (peer_id, multiaddr) in list {
                         info!("Discovered peer via mDNS: {} at {}", peer_id, multiaddr);
-                        
+
                         // Skip blocked peers
                         if self.blocked_peers.contains_key(&peer_id) {
                             debug!("Skipping mDNS discovery for blocked peer {}", peer_id);
                             continue;
                         }
-                        
-                        self.swarm.behaviour_mut().discovery.add_peer_address(peer_id, multiaddr.clone());
-                        
+
+                        self.swarm
+                            .behaviour_mut()
+                            .discovery
+                            .add_peer_address(peer_id, multiaddr.clone());
+
                         // Proactively dial discovered peers to establish connections faster.
                         if let Err(e) = self.swarm.dial(multiaddr) {
-                            trace!("Failed to proactively dial discovered peer {}: {}", peer_id, e);
+                            trace!(
+                                "Failed to proactively dial discovered peer {}: {}",
+                                peer_id,
+                                e
+                            );
                         }
                     }
                 }
@@ -653,65 +725,69 @@ impl NetworkLayer {
     }
 
     async fn handle_kademlia_event(&mut self, event: kad::Event) -> Result<()> {
-        use crate::sync::periodic::{DhtQueryResult, SyncEvent};
-        
+        use crate::sync::{DhtQueryResult, SyncEvent};
+
         match event {
             kad::Event::OutboundQueryProgressed { id, result, .. } => {
                 match result {
-                    kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FoundProviders { 
-                        key, providers, .. 
+                    kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FoundProviders {
+                        key,
+                        providers,
+                        ..
                     })) => {
                         if !providers.is_empty() {
                             trace!("Found {} providers for key: {:?}", providers.len(), key);
                         }
-                        
+
                         if let Some(sync_tx) = &self.sync_event_tx {
                             let dht_result = DhtQueryResult::ProvidersFound {
                                 providers: providers.into_iter().collect(),
                                 finished: false, // More results may come
                             };
-                            let _ = sync_tx.send(SyncEvent::DhtQueryResult { 
-                                query_id: id, 
-                                result: dht_result 
+                            let _ = sync_tx.send(SyncEvent::DhtQueryResult {
+                                query_id: id,
+                                result: dht_result,
                             });
                         }
                     }
-                    kad::QueryResult::GetProviders(Ok(kad::GetProvidersOk::FinishedWithNoAdditionalRecord { .. })) => {
+                    kad::QueryResult::GetProviders(Ok(
+                        kad::GetProvidersOk::FinishedWithNoAdditionalRecord { .. },
+                    )) => {
                         trace!("DHT query {} finished with no additional providers", id);
-                        
+
                         if let Some(sync_tx) = &self.sync_event_tx {
                             let dht_result = DhtQueryResult::ProvidersFound {
                                 providers: HashSet::new(),
                                 finished: true, // Query is complete
                             };
-                            let _ = sync_tx.send(SyncEvent::DhtQueryResult { 
-                                query_id: id, 
-                                result: dht_result 
+                            let _ = sync_tx.send(SyncEvent::DhtQueryResult {
+                                query_id: id,
+                                result: dht_result,
                             });
                         }
                     }
                     kad::QueryResult::GetProviders(Err(e)) => {
                         error!("DHT provider query {} failed: {:?}", id, e);
-                        
+
                         if let Some(sync_tx) = &self.sync_event_tx {
                             let dht_result = DhtQueryResult::QueryFailed {
                                 error: format!("{:?}", e),
                             };
-                            let _ = sync_tx.send(SyncEvent::DhtQueryResult { 
-                                query_id: id, 
-                                result: dht_result 
+                            let _ = sync_tx.send(SyncEvent::DhtQueryResult {
+                                query_id: id,
+                                result: dht_result,
                             });
                         }
                     }
-                    _ => { }
+                    _ => {}
                 }
             }
             kad::Event::RoutingUpdated { peer, .. } => {
                 trace!("Kademlia routing table updated for peer: {}", peer);
             }
-            _ => { }
+            _ => {}
         }
-        
+
         Ok(())
     }
 
@@ -723,7 +799,10 @@ impl NetworkLayer {
                 response,
             } => {
                 if !self.swarm.is_connected(&peer_id) {
-                    debug!("Peer {} not connected, failing send request immediately.", peer_id);
+                    debug!(
+                        "Peer {} not connected, failing send request immediately.",
+                        peer_id
+                    );
                     let _ = response.send(NetworkResponse::Error("Peer not connected".to_string()));
                     return Ok(());
                 }
@@ -791,7 +870,6 @@ impl NetworkLayer {
                 let query_id = self.swarm.behaviour_mut().discovery.get_providers(key);
                 let _ = response.send(Ok(query_id));
             }
-
         }
 
         Ok(())
