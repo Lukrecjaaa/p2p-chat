@@ -7,14 +7,10 @@ pub struct DiscoveryBehaviour {
     pub kademlia: kad::Behaviour<kad::store::MemoryStore>,
 }
 
-
 impl DiscoveryBehaviour {
     pub fn new(local_peer_id: PeerId) -> Result<Self> {
         // Initialize mDNS for local discovery
-        let mdns = mdns::tokio::Behaviour::new(
-            mdns::Config::default(),
-            local_peer_id,
-        )?;
+        let mdns = mdns::tokio::Behaviour::new(mdns::Config::default(), local_peer_id)?;
 
         // Initialize Kademlia DHT
         let store = kad::store::MemoryStore::new(local_peer_id);
@@ -24,10 +20,7 @@ impl DiscoveryBehaviour {
         // For now, we'll configure it to work with local testing
         kademlia.set_mode(Some(kad::Mode::Server));
 
-        Ok(Self {
-            mdns,
-            kademlia,
-        })
+        Ok(Self { mdns, kademlia })
     }
 
     pub fn bootstrap(&mut self) -> Result<()> {

@@ -30,7 +30,11 @@ impl Codec for MailboxCodec {
         serde_json::from_slice(&data).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
 
-    async fn read_response<T>(&mut self, _: &Self::Protocol, io: &mut T) -> io::Result<Self::Response>
+    async fn read_response<T>(
+        &mut self,
+        _: &Self::Protocol,
+        io: &mut T,
+    ) -> io::Result<Self::Response>
     where
         T: AsyncRead + Unpin + Send,
     {
@@ -44,11 +48,17 @@ impl Codec for MailboxCodec {
         serde_json::from_slice(&data).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
 
-    async fn write_request<T>(&mut self, _: &Self::Protocol, io: &mut T, req: Self::Request) -> io::Result<()>
+    async fn write_request<T>(
+        &mut self,
+        _: &Self::Protocol,
+        io: &mut T,
+        req: Self::Request,
+    ) -> io::Result<()>
     where
         T: AsyncWrite + Unpin + Send,
     {
-        let data = serde_json::to_vec(&req).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let data =
+            serde_json::to_vec(&req).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         let length = data.len() as u32;
 
         io.write_all(&length.to_be_bytes()).await?;
@@ -57,11 +67,17 @@ impl Codec for MailboxCodec {
         Ok(())
     }
 
-    async fn write_response<T>(&mut self, _: &Self::Protocol, io: &mut T, res: Self::Response) -> io::Result<()>
+    async fn write_response<T>(
+        &mut self,
+        _: &Self::Protocol,
+        io: &mut T,
+        res: Self::Response,
+    ) -> io::Result<()>
     where
         T: AsyncWrite + Unpin + Send,
     {
-        let data = serde_json::to_vec(&res).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+        let data =
+            serde_json::to_vec(&res).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
         let length = data.len() as u32;
 
         io.write_all(&length.to_be_bytes()).await?;
@@ -75,12 +91,8 @@ pub type MailboxBehaviour = request_response::Behaviour<MailboxCodec>;
 
 pub fn create_mailbox_behaviour() -> MailboxBehaviour {
     use std::time::Duration;
-    
-    let config = request_response::Config::default()
-        .with_request_timeout(Duration::from_secs(2)); // Much faster timeout
-    
-    request_response::Behaviour::new(
-        [(MailboxCodec::PROTOCOL, ProtocolSupport::Full)],
-        config,
-    )
+
+    let config = request_response::Config::default().with_request_timeout(Duration::from_secs(2)); // Much faster timeout
+
+    request_response::Behaviour::new([(MailboxCodec::PROTOCOL, ProtocolSupport::Full)], config)
 }
