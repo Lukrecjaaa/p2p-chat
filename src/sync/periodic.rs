@@ -72,7 +72,7 @@ pub struct MailboxPerformance {
 
 impl SyncEngine {
     pub fn new_with_network(
-        _interval: Duration,
+        interval: Duration,
         identity: Arc<Identity>,
         friends: Arc<dyn FriendsStore + Send + Sync>,
         outbox: Arc<dyn OutboxStore + Send + Sync>,
@@ -87,7 +87,11 @@ impl SyncEngine {
     )> {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
         let engine = Self {
-            interval: Duration::from_secs(5), // Much more frequent sync cycles for faster outbox retry
+            interval: if interval.is_zero() {
+                Duration::from_secs(5)
+            } else {
+                interval
+            },
             discovered_mailboxes: HashSet::new(),
             mailbox_performance: HashMap::new(),
             backoff_manager: BackoffManager::new(),
@@ -650,26 +654,33 @@ impl SyncEngine {
             return Ok(());
         };
 
-        // Update last discovery time
+        // Update last discovery time even if we skip starting a new query so the rate limiter applies.
         self.last_discovery_time = Some(Instant::now());
 
         let general_mailbox_key = make_mailbox_provider_key();
-        if let Ok(query_id) = network
-            .start_dht_provider_query(general_mailbox_key.clone())
-            .await
-        {
-            let query_state = DhtQueryState {
-                key: general_mailbox_key,
-                started_at: Instant::now(),
-                received_results: false,
-            };
-            self.pending_dht_queries.insert(query_id, query_state);
-            trace!(
-                "Started DHT query for general mailbox providers: {:?}",
-                query_id
-            );
+        if !self.has_pending_query_for(&general_mailbox_key) {
+            match network
+                .start_dht_provider_query(general_mailbox_key.clone())
+                .await
+            {
+                Ok(query_id) => {
+                    let query_state = DhtQueryState {
+                        key: general_mailbox_key,
+                        started_at: Instant::now(),
+                        received_results: false,
+                    };
+                    self.pending_dht_queries.insert(query_id, query_state);
+                    trace!(
+                        "Started DHT query for general mailbox providers: {:?}",
+                        query_id
+                    );
+                }
+                Err(e) => {
+                    error!("Failed to start DHT query for general mailboxes: {}", e);
+                }
+            }
         } else {
-            error!("Failed to start DHT query for general mailboxes");
+            trace!("Skipping DHT query for general mailbox providers; query already pending");
         }
 
         let our_recipient_hash = crate::crypto::StorageEncryption::derive_recipient_hash(
@@ -677,22 +688,32 @@ impl SyncEngine {
         );
         let recipient_mailbox_key = make_recipient_mailbox_key(our_recipient_hash);
 
-        if let Ok(query_id) = network
-            .start_dht_provider_query(recipient_mailbox_key.clone())
-            .await
-        {
-            let query_state = DhtQueryState {
-                key: recipient_mailbox_key,
-                started_at: Instant::now(),
-                received_results: false,
-            };
-            self.pending_dht_queries.insert(query_id, query_state);
-            trace!(
-                "Started DHT query for recipient-specific mailbox providers: {:?}",
-                query_id
-            );
+        if !self.has_pending_query_for(&recipient_mailbox_key) {
+            match network
+                .start_dht_provider_query(recipient_mailbox_key.clone())
+                .await
+            {
+                Ok(query_id) => {
+                    let query_state = DhtQueryState {
+                        key: recipient_mailbox_key,
+                        started_at: Instant::now(),
+                        received_results: false,
+                    };
+                    self.pending_dht_queries.insert(query_id, query_state);
+                    trace!(
+                        "Started DHT query for recipient-specific mailbox providers: {:?}",
+                        query_id
+                    );
+                }
+                Err(e) => {
+                    trace!(
+                        "Failed to start DHT query for recipient-specific mailboxes: {}",
+                        e
+                    );
+                }
+            }
         } else {
-            trace!("Failed to start DHT query for recipient-specific mailboxes");
+            trace!("Skipping DHT query for recipient-specific mailboxes; query already pending");
         }
 
         Ok(())
@@ -704,13 +725,10 @@ impl SyncEngine {
         };
 
         match network.get_connected_peers().await {
-            Ok(peers) => {
-                debug!(
-                    "Using {} connected peers as emergency mailboxes",
-                    peers.len()
-                );
-                peers
-            }
+            Ok(peers) => peers
+                .into_iter()
+                .filter(|peer| self.discovered_mailboxes.contains(peer))
+                .collect(),
             Err(_) => vec![],
         }
     }
@@ -784,25 +802,15 @@ impl SyncEngine {
     }
 
     pub fn get_available_mailboxes(&self) -> Vec<PeerId> {
-        self.discovered_mailboxes
-            .iter()
-            .filter(|&peer_id| self.backoff_manager.can_attempt(peer_id))
-            .cloned()
-            .collect()
+        self.rank_mailboxes(self.discovered_mailboxes.iter().cloned())
     }
 
     pub fn get_best_mailbox_providers(&self) -> Vec<PeerId> {
-        let mut providers: Vec<_> = self.get_available_mailboxes(); // Only include non-backed-off mailboxes
+        self.get_available_mailboxes()
+    }
 
-        providers.sort_by(|a, b| {
-            let score_a = self.calculate_mailbox_score(*a);
-            let score_b = self.calculate_mailbox_score(*b);
-            score_b
-                .partial_cmp(&score_a)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-
-        providers
+    pub fn rank_mailboxes_subset(&self, providers: &HashSet<PeerId>) -> Vec<PeerId> {
+        self.rank_mailboxes(providers.iter().cloned())
     }
 
     fn calculate_mailbox_score(&self, peer_id: PeerId) -> f64 {
@@ -842,6 +850,26 @@ impl SyncEngine {
         }
 
         score.max(0.0).min(1.0) // Clamp to [0, 1]
+    }
+
+    fn rank_mailboxes<I>(&self, candidates: I) -> Vec<PeerId>
+    where
+        I: IntoIterator<Item = PeerId>,
+    {
+        let mut providers: Vec<_> = candidates
+            .into_iter()
+            .filter(|peer| self.backoff_manager.can_attempt(peer))
+            .collect();
+
+        providers.sort_by(|a, b| {
+            let score_a = self.calculate_mailbox_score(*a);
+            let score_b = self.calculate_mailbox_score(*b);
+            score_b
+                .partial_cmp(&score_a)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        providers
     }
 
     fn should_forget_mailbox(&self, peer_id: PeerId) -> bool {
@@ -917,6 +945,12 @@ impl SyncEngine {
         // Also cleanup backoff manager
         self.backoff_manager
             .cleanup_old_entries(Duration::from_secs(3600)); // 1 hour
+    }
+
+    fn has_pending_query_for(&self, key: &kad::RecordKey) -> bool {
+        self.pending_dht_queries
+            .values()
+            .any(|state| state.key == *key)
     }
 
     pub fn update_mailbox_performance(

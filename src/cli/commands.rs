@@ -67,7 +67,7 @@ impl Node {
         // Get mailboxes sorted by performance instead of random shuffle
         let candidate_mailboxes = {
             let sync_engine = self.sync_engine.lock().await;
-            sync_engine.get_best_mailbox_providers()
+            sync_engine.rank_mailboxes_subset(providers)
         };
 
         for peer_id in candidate_mailboxes.iter().take(max_attempts) {
