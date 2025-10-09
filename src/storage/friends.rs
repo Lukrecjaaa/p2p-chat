@@ -1,5 +1,5 @@
-use crate::types::Friend;
 use crate::crypto::StorageEncryption;
+use crate::types::Friend;
 use anyhow::Result;
 use async_trait::async_trait;
 use libp2p::PeerId;
@@ -25,7 +25,7 @@ impl SledFriendsStore {
 
     fn serialize_friend(&self, friend: &Friend) -> Result<Vec<u8>> {
         let serialized = serde_json::to_vec(friend)?;
-        
+
         if let Some(ref encryption) = self.encryption {
             encryption.encrypt_value(&serialized)
         } else {
@@ -64,13 +64,12 @@ impl FriendsStore for SledFriendsStore {
 
     async fn list_friends(&self) -> Result<Vec<Friend>> {
         let mut friends = Vec::new();
-        
+
         for result in self.tree.iter() {
             let (_key, value) = result?;
             friends.push(self.deserialize_friend(&value)?);
         }
-        
+
         Ok(friends)
     }
-
 }

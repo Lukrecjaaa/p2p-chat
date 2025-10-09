@@ -1,5 +1,5 @@
-use crate::types::Message;
 use crate::crypto::StorageEncryption;
+use crate::types::Message;
 use anyhow::Result;
 use async_trait::async_trait;
 use sled::Db;
@@ -25,7 +25,7 @@ impl SledOutboxStore {
 
     fn serialize_message(&self, msg: &Message) -> Result<Vec<u8>> {
         let serialized = serde_json::to_vec(msg)?;
-        
+
         if let Some(ref encryption) = self.encryption {
             encryption.encrypt_value(&serialized)
         } else {
@@ -49,7 +49,7 @@ impl OutboxStore for SledOutboxStore {
     async fn add_pending(&self, msg: Message) -> Result<()> {
         let key = msg.id.to_string();
         let value = self.serialize_message(&msg)?;
-        
+
         self.tree.insert(key.as_bytes(), value)?;
         self.tree.flush_async().await?;
         Ok(())
@@ -57,12 +57,12 @@ impl OutboxStore for SledOutboxStore {
 
     async fn get_pending(&self) -> Result<Vec<Message>> {
         let mut messages = Vec::new();
-        
+
         for result in self.tree.iter() {
             let (_key, value) = result?;
             messages.push(self.deserialize_message(&value)?);
         }
-        
+
         // Sort by timestamp for consistent ordering
         messages.sort_by_key(|msg| msg.timestamp);
         Ok(messages)

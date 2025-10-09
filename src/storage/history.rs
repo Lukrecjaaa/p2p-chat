@@ -8,8 +8,12 @@ use sled::Db;
 #[async_trait]
 pub trait MessageStore {
     async fn store_message(&self, msg: Message) -> Result<()>;
-    async fn get_history(&self, own_id: &PeerId, peer: &PeerId, limit: usize)
-        -> Result<Vec<Message>>;
+    async fn get_history(
+        &self,
+        own_id: &PeerId,
+        peer: &PeerId,
+        limit: usize,
+    ) -> Result<Vec<Message>>;
 }
 
 pub struct MessageHistory {
@@ -35,11 +39,7 @@ impl MessageHistory {
         [p1_bytes, p2_bytes].concat()
     }
 
-    fn make_composite_key(
-        conversation_id: &[u8],
-        timestamp: i64,
-        nonce: u64,
-    ) -> Vec<u8> {
+    fn make_composite_key(conversation_id: &[u8], timestamp: i64, nonce: u64) -> Vec<u8> {
         let mut key = Vec::new();
         key.extend_from_slice(conversation_id);
         key.extend_from_slice(&timestamp.to_be_bytes());
@@ -99,5 +99,4 @@ impl MessageStore for MessageHistory {
         messages.reverse();
         Ok(messages)
     }
-
 }

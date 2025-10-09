@@ -28,7 +28,7 @@ impl SeenTracker for SledSeenTracker {
     async fn mark_seen(&self, msg_id: Uuid) -> Result<()> {
         let key = msg_id.to_string();
         let timestamp = Utc::now().timestamp_millis();
-        
+
         self.tree.insert(key.as_bytes(), &timestamp.to_be_bytes())?;
         self.tree.flush_async().await?;
         Ok(())
@@ -42,23 +42,21 @@ impl SeenTracker for SledSeenTracker {
     async fn cleanup_old(&self, max_age: Duration) -> Result<()> {
         let cutoff = Utc::now().timestamp_millis() - max_age.as_millis() as i64;
         let mut keys_to_remove = Vec::new();
-        
+
         for result in self.tree.iter() {
             let (key, value) = result?;
             if value.len() >= 8 {
-                let timestamp = i64::from_be_bytes(
-                    value[..8].try_into().unwrap()
-                );
+                let timestamp = i64::from_be_bytes(value[..8].try_into().unwrap());
                 if timestamp < cutoff {
                     keys_to_remove.push(key.to_vec());
                 }
             }
         }
-        
+
         for key in keys_to_remove {
             self.tree.remove(key)?;
         }
-        
+
         self.tree.flush_async().await?;
         Ok(())
     }
