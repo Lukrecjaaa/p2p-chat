@@ -18,12 +18,13 @@ impl TUILogCollector {
         Self { buffer }
     }
 
-    pub fn init_subscriber(buffer: Arc<LogBuffer>) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub fn init_subscriber(
+        buffer: Arc<LogBuffer>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let collector = TUILogCollector::new(buffer);
-        
+
         // Create a layered subscriber with ONLY TUI output (no console output)
-        let subscriber = tracing_subscriber::registry()
-            .with(collector);
+        let subscriber = tracing_subscriber::registry().with(collector);
 
         tracing::subscriber::set_global_default(subscriber)?;
         Ok(())
@@ -36,7 +37,7 @@ where
 {
     fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
         let metadata = event.metadata();
-        
+
         // Extract the message from the event
         let mut message = String::new();
         let mut visitor = MessageVisitor(&mut message);

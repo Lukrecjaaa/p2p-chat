@@ -1,5 +1,5 @@
-pub mod collector;
 pub mod buffer;
+pub mod collector;
 
-pub use collector::TUILogCollector;
 pub use buffer::LogBuffer;
+pub use collector::TUILogCollector;

@@ -54,17 +54,16 @@ impl LogBuffer {
         if should_notify {
             // Add to pending batch for async processing
             self.pending_batch.lock().unwrap().push(entry);
-            
+
             // Start batch timer if not already running
             self.start_batch_timer_if_needed();
         }
     }
 
-
     /// Set the current display level for filtering UI notifications
     pub fn set_display_level(&self, level: Level) {
         *self.current_display_level.lock().unwrap() = level;
-        
+
         // Trigger a refresh of logs with the new level
         if let Some(ref sender) = *self.ui_sender.lock().unwrap() {
             let _ = sender.send(crate::ui::UIEvent::RefreshLogs);
@@ -74,7 +73,7 @@ impl LogBuffer {
     /// Set the current UI mode to optimize notifications
     pub fn set_ui_mode(&self, mode: UIMode) {
         *self.current_ui_mode.lock().unwrap() = mode.clone();
-        
+
         // If switching to log mode, trigger a refresh
         if matches!(mode, UIMode::Logs { .. }) {
             if let Some(ref sender) = *self.ui_sender.lock().unwrap() {
@@ -88,26 +87,26 @@ impl LogBuffer {
         let mut timer_guard = self.batch_timer.lock().unwrap();
         if timer_guard.is_none() {
             *timer_guard = Some(interval(Duration::from_millis(100))); // Batch every 100ms
-            
+
             // Clone necessary data for the async task
             let ui_sender = self.ui_sender.clone();
             let pending_batch = self.pending_batch.clone();
             let batch_timer = self.batch_timer.clone();
-            
+
             drop(timer_guard); // Release the lock before spawning
-            
+
             // Spawn async task to flush batches
             tokio::spawn(async move {
                 let mut timer = {
                     let mut timer_guard = batch_timer.lock().unwrap();
                     timer_guard.take().unwrap()
                 };
-                
+
                 timer.tick().await; // Skip the first immediate tick
-                
+
                 loop {
                     timer.tick().await;
-                    
+
                     // Check if there are pending entries to flush
                     let batch = {
                         let mut pending = pending_batch.lock().unwrap();
@@ -117,7 +116,7 @@ impl LogBuffer {
                         let batch = pending.drain(..).collect::<Vec<_>>();
                         batch
                     };
-                    
+
                     // Send batch to UI
                     if let Some(ref sender) = *ui_sender.lock().unwrap() {
                         if sender.send(crate::ui::UIEvent::NewLogBatch(batch)).is_err() {
@@ -129,11 +128,10 @@ impl LogBuffer {
                         break;
                     }
                 }
-                
+
                 // Clean up timer when done
                 *batch_timer.lock().unwrap() = None;
             });
         }
     }
-
 }
