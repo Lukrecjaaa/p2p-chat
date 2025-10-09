@@ -1,7 +1,7 @@
 pub mod hpke;
-pub mod storage;
 pub mod identity;
+pub mod storage;
 
 pub use hpke::HpkeContext;
-pub use storage::StorageEncryption;
 pub use identity::Identity;
+pub use storage::StorageEncryption;

@@ -89,7 +89,7 @@ impl HpkeContext {
 
         Ok(PublicKey::from(key_array))
     }
-    
+
     fn derive_symmetric_key(&self, shared_secret: &SharedSecret) -> Key {
         let mut hasher = Sha256::new();
         hasher.update(shared_secret.as_bytes());

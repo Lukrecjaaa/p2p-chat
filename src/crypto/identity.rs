@@ -1,13 +1,13 @@
+use crate::crypto::HpkeContext;
 use anyhow::Result;
 use libp2p::{identity, PeerId};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use crate::crypto::HpkeContext;
 
 #[derive(Serialize, Deserialize)]
 pub struct KeyPair {
-    pub libp2p_keypair: Vec<u8>, // Serialized Ed25519 keypair
+    pub libp2p_keypair: Vec<u8>,   // Serialized Ed25519 keypair
     pub hpke_private_key: Vec<u8>, // X25519 private key
     pub hpke_public_key: Vec<u8>,  // X25519 public key
 }
@@ -49,7 +49,8 @@ impl Identity {
         let keypair_data: KeyPair = serde_json::from_str(&content)?;
 
         // Reconstruct libp2p keypair
-        let libp2p_keypair = identity::Keypair::from_protobuf_encoding(&keypair_data.libp2p_keypair)?;
+        let libp2p_keypair =
+            identity::Keypair::from_protobuf_encoding(&keypair_data.libp2p_keypair)?;
         let peer_id = PeerId::from(libp2p_keypair.public());
 
         // Reconstruct HPKE context
@@ -70,11 +71,11 @@ impl Identity {
         };
 
         let content = serde_json::to_string_pretty(&keypair_data)?;
-        
+
         if let Some(parent) = Path::new(path).parent() {
             fs::create_dir_all(parent)?;
         }
-        
+
         fs::write(path, content)?;
         Ok(())
     }
