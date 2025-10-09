@@ -26,6 +26,8 @@ pub struct EncryptedMessage {
     pub recipient_hash: [u8; 32],
     pub encrypted_content: Vec<u8>,
     pub timestamp: i64,
+    #[serde(default)]
+    pub nonce: u64,
     pub sender_pub_key: Vec<u8>,
 }
 
@@ -43,34 +45,31 @@ pub enum ChatRequest {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ChatResponse {
-    MessageResult { success: bool, message_id: Option<Uuid> },
+    MessageResult {
+        success: bool,
+        message_id: Option<Uuid>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum MailboxRequest {
-    Put { 
-        recipient: [u8; 32], 
-        message: EncryptedMessage 
+    Put {
+        recipient: [u8; 32],
+        message: EncryptedMessage,
     },
-    Fetch { 
-        recipient: [u8; 32], 
-        limit: usize 
+    Fetch {
+        recipient: [u8; 32],
+        limit: usize,
     },
-    Ack { 
-        recipient: [u8; 32], 
-        msg_ids: Vec<Uuid> 
+    Ack {
+        recipient: [u8; 32],
+        msg_ids: Vec<Uuid>,
     },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum MailboxResponse {
-    PutResult { 
-        success: bool 
-    },
-    Messages { 
-        items: Vec<EncryptedMessage> 
-    },
-    AckResult { 
-        deleted: usize 
-    },
+    PutResult { success: bool },
+    Messages { items: Vec<EncryptedMessage> },
+    AckResult { deleted: usize },
 }
