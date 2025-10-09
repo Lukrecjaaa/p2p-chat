@@ -3,11 +3,14 @@ use chrono::Utc;
 use crate::types::Message;
 use crate::ui::mode::UIMode;
 
-use super::UIState;
+use super::{ChatMessageEntry, UIState};
 
 impl UIState {
     pub fn add_message(&mut self, message: Message) {
-        self.messages.push(message);
+        self.messages.push(ChatMessageEntry {
+            message,
+            received_at: Utc::now(),
+        });
 
         if matches!(self.mode, UIMode::Chat) {
             if self.is_at_bottom_chat {

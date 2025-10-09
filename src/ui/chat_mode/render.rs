@@ -18,12 +18,13 @@ impl ChatMode {
     ) -> Result<()> {
         let (x, y, width, height) = area;
 
-        let mut all_items: Vec<(DateTime<Local>, String, Color)> = Vec::new();
+        let mut all_items: Vec<(DateTime<Utc>, DateTime<Local>, String, Color)> = Vec::new();
 
-        for message in &state.messages {
-            let timestamp = DateTime::<Utc>::from_timestamp_millis(message.timestamp)
-                .unwrap_or_else(Utc::now)
-                .with_timezone(&Local);
+        for entry in &state.messages {
+            let message = &entry.message;
+            let message_timestamp = DateTime::<Utc>::from_timestamp_millis(message.timestamp)
+                .unwrap_or_else(Utc::now);
+            let display_timestamp = message_timestamp.with_timezone(&Local);
 
             let content = if let Some(node) = node {
                 let is_sent = message.sender == node.identity.peer_id;
@@ -85,17 +86,17 @@ impl ChatMode {
                 (format!("{}: {}", sender_display, content), Color::Cyan)
             };
 
-            all_items.push((timestamp, text, color));
+            all_items.push((entry.received_at, display_timestamp, text, color));
         }
 
         for (timestamp, chat_msg) in &state.chat_messages {
             let local_timestamp = timestamp.with_timezone(&Local);
             for line in chat_msg.lines() {
-                all_items.push((local_timestamp, line.to_string(), Color::White));
+                all_items.push((*timestamp, local_timestamp, line.to_string(), Color::White));
             }
         }
 
-        all_items.sort_by_key(|(timestamp, _, _)| *timestamp);
+        all_items.sort_by_key(|(ordering, _, _, _)| *ordering);
 
         let total_items = all_items.len();
         let visible_lines = height as usize;
@@ -113,7 +114,7 @@ impl ChatMode {
         let end_idx = (start_idx + visible_lines).min(total_items);
 
         for (line_idx, item_idx) in (start_idx..end_idx).enumerate() {
-            if let Some((timestamp, text, color)) = all_items.get(item_idx) {
+            if let Some((_, timestamp, text, color)) = all_items.get(item_idx) {
                 queue!(stdout, cursor::MoveTo(x, y + line_idx as u16))?;
 
                 let full_text = if text.starts_with("__HISTORY_OUTPUT__") {

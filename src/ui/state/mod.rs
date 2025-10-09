@@ -15,7 +15,7 @@ use super::{log_entry::LogEntry, mode::UIMode};
 pub struct UIState {
     pub mode: UIMode,
     pub last_log_mode: Option<UIMode>,
-    pub messages: Vec<Message>,
+    pub messages: Vec<ChatMessageEntry>,
     pub chat_messages: Vec<(DateTime<Utc>, String)>,
     pub logs: VecDeque<LogEntry>,
     pub scroll_offset: usize,
@@ -74,4 +74,10 @@ impl UIState {
         self.is_at_bottom_chat = true;
         self.is_at_bottom_log = true;
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct ChatMessageEntry {
+    pub message: Message,
+    pub received_at: DateTime<Utc>,
 }
