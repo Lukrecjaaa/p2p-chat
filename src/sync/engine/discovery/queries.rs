@@ -1,15 +1,14 @@
-use super::events::DhtQueryResult;
-use super::performance::{
-    FAILURE_WINDOW_SECONDS, MAX_CONSECUTIVE_FAILURES, MAX_FAILURES_IN_WINDOW,
-};
-use super::{DhtQueryState, SyncEngine};
+use std::time::{Duration, Instant};
+
+use anyhow::Result;
+use libp2p::kad;
+use tracing::{debug, error, info, trace};
+
 use crate::crypto::StorageEncryption;
 use crate::mailbox::{make_mailbox_provider_key, make_recipient_mailbox_key};
-use anyhow::Result;
-use libp2p::{kad, PeerId};
-use std::collections::HashSet;
-use std::time::{Duration, Instant};
-use tracing::{debug, error, info, trace};
+
+use super::super::events::DhtQueryResult;
+use super::super::{DhtQueryState, SyncEngine};
 
 impl SyncEngine {
     pub async fn discover_mailboxes(&mut self) -> Result<()> {
@@ -176,53 +175,7 @@ impl SyncEngine {
         Ok(())
     }
 
-    pub fn get_mailbox_providers(&self) -> &HashSet<PeerId> {
-        &self.discovered_mailboxes
-    }
-
-    pub fn get_available_mailboxes(&self) -> Vec<PeerId> {
-        self.rank_mailboxes(self.discovered_mailboxes.iter().cloned())
-    }
-
-    pub fn rank_mailboxes_subset(&self, providers: &HashSet<PeerId>) -> Vec<PeerId> {
-        self.rank_mailboxes(providers.iter().cloned())
-    }
-
-    fn rank_mailboxes<I>(&self, candidates: I) -> Vec<PeerId>
-    where
-        I: IntoIterator<Item = PeerId>,
-    {
-        let mut providers: Vec<_> = candidates
-            .into_iter()
-            .filter(|peer| self.backoff_manager.can_attempt(peer))
-            .collect();
-
-        providers.sort_by(|a, b| {
-            let score_a = self.calculate_mailbox_score(*a);
-            let score_b = self.calculate_mailbox_score(*b);
-            score_b
-                .partial_cmp(&score_a)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
-
-        providers
-    }
-
-    pub async fn get_emergency_mailboxes(&self) -> Vec<PeerId> {
-        let Some(network) = &self.network else {
-            return vec![];
-        };
-
-        match network.get_connected_peers().await {
-            Ok(peers) => peers
-                .into_iter()
-                .filter(|peer| self.discovered_mailboxes.contains(peer))
-                .collect(),
-            Err(_) => vec![],
-        }
-    }
-
-    pub(super) fn cleanup_stale_dht_queries(&mut self) {
+    pub(crate) fn cleanup_stale_dht_queries(&mut self) {
         let stale_timeout = Duration::from_secs(60);
         let mut stale_queries = Vec::new();
 
@@ -251,55 +204,5 @@ impl SyncEngine {
         self.pending_dht_queries
             .values()
             .any(|state| state.key == *key)
-    }
-
-    fn calculate_mailbox_score(&self, peer_id: PeerId) -> f64 {
-        let mut score = 0.5;
-
-        if let Some(perf) = self.mailbox_performance.get(&peer_id) {
-            let total_attempts = perf.success_count + perf.failure_count;
-
-            if total_attempts > 0 {
-                let success_rate = perf.success_count as f64 / total_attempts as f64;
-                score = success_rate * 0.7;
-
-                if let Some(last_success) = perf.last_success {
-                    let age_hours = last_success.elapsed().as_secs() as f64 / 3600.0;
-                    let recency_bonus = (1.0 / (1.0 + age_hours)).min(0.3);
-                    score += recency_bonus * 0.2;
-                }
-
-                let response_ms = perf.avg_response_time.as_millis() as f64;
-                let speed_score = (3000.0 - response_ms.min(3000.0)) / 3000.0;
-                score += speed_score * 0.1;
-
-                let failure_penalty = (perf.consecutive_failures as f64 * 0.1).min(0.3);
-                score -= failure_penalty;
-            }
-        }
-
-        if !self.backoff_manager.can_attempt(&peer_id) {
-            score *= 0.1;
-        }
-
-        score.max(0.0).min(1.0)
-    }
-
-    pub(super) fn should_forget_mailbox(&self, peer_id: PeerId) -> bool {
-        if let Some(perf) = self.mailbox_performance.get(&peer_id) {
-            if perf.consecutive_failures >= MAX_CONSECUTIVE_FAILURES {
-                return true;
-            }
-
-            if let Some(last_failure) = perf.last_failure {
-                let time_since_last_failure = last_failure.elapsed().as_secs();
-                if time_since_last_failure <= FAILURE_WINDOW_SECONDS
-                    && perf.failure_count >= MAX_FAILURES_IN_WINDOW
-                {
-                    return true;
-                }
-            }
-        }
-        false
     }
 }
