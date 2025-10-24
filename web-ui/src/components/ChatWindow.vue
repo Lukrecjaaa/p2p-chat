@@ -221,7 +221,6 @@ watch(activeConversation, async (peerId) => {
 .message {
   display: flex;
   flex-direction: column;
-  max-width: 60%;
 }
 
 .message.sent {
