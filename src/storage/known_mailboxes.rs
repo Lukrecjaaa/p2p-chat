@@ -42,7 +42,6 @@ pub trait KnownMailboxesStore: Send + Sync {
     async fn get_mailbox(&self, peer_id: &PeerId) -> Result<Option<KnownMailbox>>;
     async fn list_mailboxes(&self) -> Result<Vec<KnownMailbox>>;
     async fn remove_mailbox(&self, peer_id: &PeerId) -> Result<()>;
-    async fn update_last_seen(&self, peer_id: &PeerId) -> Result<()>;
     async fn increment_success(&self, peer_id: &PeerId) -> Result<()>;
     async fn increment_failure(&self, peer_id: &PeerId) -> Result<()>;
 }
@@ -112,14 +111,6 @@ impl KnownMailboxesStore for SledKnownMailboxesStore {
         let key = peer_id.to_bytes();
         self.tree.remove(key)?;
         self.tree.flush_async().await?;
-        Ok(())
-    }
-
-    async fn update_last_seen(&self, peer_id: &PeerId) -> Result<()> {
-        if let Some(mut mailbox) = self.get_mailbox(peer_id).await? {
-            mailbox.touch();
-            self.add_mailbox(mailbox).await?;
-        }
         Ok(())
     }
 
