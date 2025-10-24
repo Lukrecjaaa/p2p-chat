@@ -10,9 +10,6 @@ pub struct AppArgs {
     #[arg(long, help = "Port to listen on (random free port if not specified)")]
     pub port: Option<u16>,
 
-    #[arg(long, help = "Config file path")]
-    pub config: Option<String>,
-
     #[arg(long, default_value = "data", help = "Data directory")]
     pub data_dir: String,
 
