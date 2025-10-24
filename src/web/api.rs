@@ -6,6 +6,7 @@ use axum::{
     response::IntoResponse,
     Json,
 };
+use base64::prelude::*;
 use libp2p::PeerId;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -59,7 +60,7 @@ pub struct ConversationResponse {
 pub async fn get_me(State(node): State<Arc<Node>>) -> impl IntoResponse {
     let response = IdentityResponse {
         peer_id: node.identity.peer_id.to_string(),
-        hpke_public_key: hex::encode(node.identity.hpke_public_key()),
+        hpke_public_key: BASE64_STANDARD.encode(node.identity.hpke_public_key()),
     };
     Json(response)
 }
@@ -78,7 +79,7 @@ pub async fn list_friends(State(node): State<Arc<Node>>) -> impl IntoResponse {
                 .map(|f| FriendResponse {
                     online: online_peers.contains(&f.peer_id),
                     peer_id: f.peer_id.to_string(),
-                    e2e_public_key: hex::encode(&f.e2e_public_key),
+                    e2e_public_key: BASE64_STANDARD.encode(&f.e2e_public_key),
                     nickname: f.nickname,
                 })
                 .collect();
@@ -108,7 +109,7 @@ pub async fn add_friend(
         }
     };
 
-    let e2e_public_key = match hex::decode(&req.e2e_public_key) {
+    let e2e_public_key = match BASE64_STANDARD.decode(&req.e2e_public_key) {
         Ok(key) => key,
         Err(e) => {
             return (
