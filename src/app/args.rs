@@ -21,6 +21,9 @@ pub struct AppArgs {
         help = "Password used for storage encryption (or set P2P_MESSENGER_PASSWORD)"
     )]
     pub encryption_password: Option<String>,
+
+    #[arg(long, help = "Web UI port (random free port if not specified)")]
+    pub web_port: Option<u16>,
 }
 
 impl AppArgs {

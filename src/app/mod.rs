@@ -15,6 +15,7 @@ pub async fn launch_with_args(args: AppArgs) -> Result<()> {
     let setup::PreparedApp {
         args,
         port,
+        web_port,
         identity,
         db,
         encryption,
@@ -23,6 +24,6 @@ pub async fn launch_with_args(args: AppArgs) -> Result<()> {
     if args.mailbox {
         mailbox::run(identity, db, encryption, port).await
     } else {
-        client::run(identity, db, encryption, port).await
+        client::run(identity, db, encryption, port, web_port).await
     }
 }

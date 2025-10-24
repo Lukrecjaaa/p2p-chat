@@ -21,6 +21,7 @@ pub async fn run(
     db: sled::Db,
     encryption: Option<StorageEncryption>,
     port: u16,
+    web_port: u16,
 ) -> Result<()> {
     println!("💬 Starting client mode");
 
@@ -42,6 +43,7 @@ pub async fn run(
 
     let (incoming_tx, mut incoming_rx) = mpsc::unbounded_channel::<Message>();
     let (ui_notify_tx, ui_notify_rx) = mpsc::unbounded_channel::<UiNotification>();
+    let (web_notify_tx, web_notify_rx) = mpsc::unbounded_channel::<UiNotification>();
 
     let sync_stores = SyncStores::new(
         friends.clone(),
@@ -154,7 +156,16 @@ pub async fn run(
 
             let _ = node_clone
                 .ui_notify_tx
-                .send(UiNotification::NewMessage(message));
+                .send(UiNotification::NewMessage(message.clone()));
+            let _ = web_notify_tx.send(UiNotification::NewMessage(message));
+        }
+    });
+
+    // Start web server
+    let node_for_web = node.clone();
+    tokio::spawn(async move {
+        if let Err(e) = crate::web::start_server(node_for_web, web_port, web_notify_rx).await {
+            error!("Web server error: {}", e);
         }
     });
 

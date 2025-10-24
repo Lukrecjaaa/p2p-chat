@@ -9,6 +9,7 @@ mod storage;
 mod sync;
 mod types;
 mod ui;
+mod web;
 
 use anyhow::Result;
 

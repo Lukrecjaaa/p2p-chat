@@ -10,6 +10,7 @@ use tracing_subscriber::EnvFilter;
 pub struct PreparedApp {
     pub args: AppArgs,
     pub port: u16,
+    pub web_port: u16,
     pub identity: Arc<Identity>,
     pub db: sled::Db,
     pub encryption: Option<StorageEncryption>,
@@ -17,9 +18,10 @@ pub struct PreparedApp {
 
 pub fn prepare(args: AppArgs) -> Result<PreparedApp> {
     let port = args.port.unwrap_or(find_free_port()?);
+    let web_port = args.web_port.unwrap_or(find_free_port()?);
 
     configure_logging(args.mailbox);
-    print_start_banner(&args, port);
+    print_start_banner(&args, port, web_port);
 
     std::fs::create_dir_all(&args.data_dir)?;
 
@@ -46,6 +48,7 @@ pub fn prepare(args: AppArgs) -> Result<PreparedApp> {
     Ok(PreparedApp {
         args,
         port,
+        web_port,
         identity,
         db,
         encryption,
@@ -60,7 +63,7 @@ fn configure_logging(mailbox_mode: bool) {
     }
 }
 
-fn print_start_banner(args: &AppArgs, port: u16) {
+fn print_start_banner(args: &AppArgs, port: u16, web_port: u16) {
     println!("🚀 Starting P2P E2E Messenger");
     println!(
         "Mode: {}",
@@ -71,6 +74,9 @@ fn print_start_banner(args: &AppArgs, port: u16) {
         }
     );
     println!("Port: {}", port);
+    if !args.mailbox {
+        println!("Web UI: http://127.0.0.1:{}", web_port);
+    }
     println!("Data directory: {}", args.data_dir);
     println!();
 }
