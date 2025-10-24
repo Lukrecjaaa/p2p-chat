@@ -1,3 +1,4 @@
+use crate::storage::KnownMailbox;
 use crate::sync::engine::events::DhtQueryResult;
 use crate::sync::engine::SyncEngine;
 use anyhow::Result;
@@ -41,6 +42,14 @@ impl SyncEngine {
                         new_providers += 1;
                         info!("Discovered new mailbox provider: {}", provider);
                         self.backoff_manager.record_success(&provider);
+
+                        // Save newly discovered mailbox to database
+                        let known_mailbox = KnownMailbox::new(provider);
+                        if let Err(e) = self.known_mailboxes.add_mailbox(known_mailbox).await {
+                            error!("Failed to save mailbox {} to database: {}", provider, e);
+                        } else {
+                            trace!("Saved mailbox {} to database cache", provider);
+                        }
                     }
                 }
 

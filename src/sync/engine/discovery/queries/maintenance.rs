@@ -5,7 +5,7 @@ use tracing::trace;
 
 impl SyncEngine {
     pub(crate) fn cleanup_stale_dht_queries(&mut self) {
-        let stale_timeout = Duration::from_secs(60);
+        let stale_timeout = Duration::from_secs(10);
         let mut stale_queries = Vec::new();
 
         for (&query_id, query_state) in &self.pending_dht_queries {

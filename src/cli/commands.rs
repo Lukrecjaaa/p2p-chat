@@ -97,7 +97,7 @@ impl Node {
                                 peer_id_copy,
                                 true,
                                 response_time,
-                            );
+                            ).await;
                         }
                     });
 
@@ -120,7 +120,7 @@ impl Node {
                                 peer_id_copy,
                                 false,
                                 response_time,
-                            );
+                            ).await;
                         }
                     });
                 }
@@ -138,7 +138,7 @@ impl Node {
                                 peer_id_copy,
                                 false,
                                 response_time,
-                            );
+                            ).await;
                         }
                     });
                 }

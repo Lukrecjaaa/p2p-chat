@@ -1,7 +1,7 @@
 use crate::cli::UiNotification;
 use crate::crypto::Identity;
 use crate::network::NetworkHandle;
-use crate::storage::{FriendsStore, MessageStore, OutboxStore, SeenTracker};
+use crate::storage::{FriendsStore, KnownMailboxesStore, MessageStore, OutboxStore, SeenTracker};
 use crate::sync::backoff::BackoffManager;
 use anyhow::Result;
 use libp2p::{kad, PeerId};
@@ -32,6 +32,7 @@ pub struct SyncEngine {
     pub outbox: Arc<dyn OutboxStore + Send + Sync>,
     pub history: Arc<dyn MessageStore + Send + Sync>,
     pub seen: Arc<dyn SeenTracker + Send + Sync>,
+    pub known_mailboxes: Arc<dyn KnownMailboxesStore + Send + Sync>,
     pub network: Option<NetworkHandle>,
     pub ui_notify_tx: mpsc::UnboundedSender<UiNotification>,
 }
@@ -42,6 +43,7 @@ pub struct SyncStores {
     pub outbox: Arc<dyn OutboxStore + Send + Sync>,
     pub history: Arc<dyn MessageStore + Send + Sync>,
     pub seen: Arc<dyn SeenTracker + Send + Sync>,
+    pub known_mailboxes: Arc<dyn KnownMailboxesStore + Send + Sync>,
 }
 
 impl SyncStores {
@@ -50,12 +52,14 @@ impl SyncStores {
         outbox: Arc<dyn OutboxStore + Send + Sync>,
         history: Arc<dyn MessageStore + Send + Sync>,
         seen: Arc<dyn SeenTracker + Send + Sync>,
+        known_mailboxes: Arc<dyn KnownMailboxesStore + Send + Sync>,
     ) -> Self {
         Self {
             friends,
             outbox,
             history,
             seen,
+            known_mailboxes,
         }
     }
 }
@@ -84,6 +88,7 @@ impl SyncEngine {
             outbox,
             history,
             seen,
+            known_mailboxes,
         } = stores;
         let (event_tx, event_rx) = mpsc::unbounded_channel();
         let engine = Self {
@@ -102,6 +107,7 @@ impl SyncEngine {
             outbox,
             history,
             seen,
+            known_mailboxes,
             network: Some(network),
             ui_notify_tx,
         };
@@ -141,7 +147,7 @@ impl SyncEngine {
             error!("Failed to cleanup seen entries: {}", e);
         }
 
-        self.cleanup_failing_mailboxes();
+        self.cleanup_failing_mailboxes().await;
         self.cleanup_stale_dht_queries();
 
         trace!("Sync cycle completed");
@@ -176,10 +182,10 @@ impl SyncEngine {
                         peer_id
                     );
 
-                    self.update_mailbox_performance(peer_id, false, Duration::from_millis(2000));
+                    self.update_mailbox_performance(peer_id, false, Duration::from_millis(2000)).await;
 
                     if self.should_forget_mailbox(peer_id) {
-                        self.forget_failing_mailbox(peer_id);
+                        self.forget_failing_mailbox(peer_id).await;
                     }
                 } else {
                     trace!(

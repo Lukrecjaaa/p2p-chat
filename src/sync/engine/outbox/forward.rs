@@ -63,7 +63,7 @@ impl SyncEngine {
                 .await
             {
                 Ok(true) => {
-                    self.update_mailbox_performance(*peer_id, true, start_time.elapsed());
+                    self.update_mailbox_performance(*peer_id, true, start_time.elapsed()).await;
                     info!(
                         "Successfully forwarded pending message {} to mailbox {} ({}/{})",
                         message.id,
@@ -78,7 +78,7 @@ impl SyncEngine {
                     }
                 }
                 Ok(false) => {
-                    self.update_mailbox_performance(*peer_id, false, start_time.elapsed());
+                    self.update_mailbox_performance(*peer_id, false, start_time.elapsed()).await;
                     debug!(
                         "Mailbox {} rejected pending message {}",
                         peer_id, message.id
@@ -89,7 +89,7 @@ impl SyncEngine {
                     }
                 }
                 Err(err) => {
-                    self.update_mailbox_performance(*peer_id, false, start_time.elapsed());
+                    self.update_mailbox_performance(*peer_id, false, start_time.elapsed()).await;
                     debug!(
                         "Failed to forward pending message {} to mailbox {}: {}",
                         message.id, peer_id, err
@@ -103,7 +103,7 @@ impl SyncEngine {
         }
 
         for mailbox_id in mailboxes_to_forget {
-            self.forget_failing_mailbox(mailbox_id);
+            self.forget_failing_mailbox(mailbox_id).await;
         }
 
         Ok(forwarded_count > 0)

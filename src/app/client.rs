@@ -2,7 +2,8 @@ use crate::cli::commands::{Node, UiNotification};
 use crate::crypto::{Identity, StorageEncryption};
 use crate::network::NetworkLayer;
 use crate::storage::{
-    MessageHistory, SeenTracker, SledFriendsStore, SledOutboxStore, SledSeenTracker,
+    MessageHistory, SeenTracker, SledFriendsStore, SledKnownMailboxesStore, SledOutboxStore,
+    SledSeenTracker,
 };
 use crate::sync::{SyncEngine, SyncStores};
 use crate::types::Message;
@@ -27,6 +28,10 @@ pub async fn run(
     let history = Arc::new(MessageHistory::new(db.clone(), encryption.clone())?);
     let outbox = Arc::new(SledOutboxStore::new(db.clone(), encryption.clone())?);
     let seen = Arc::new(SledSeenTracker::new(db.clone())?);
+    let known_mailboxes = Arc::new(SledKnownMailboxesStore::new(
+        db.clone(),
+        encryption.clone(),
+    )?);
 
     let listen_addr = Multiaddr::from_str(&format!("/ip4/0.0.0.0/tcp/{}", port))?;
 
@@ -43,6 +48,7 @@ pub async fn run(
         outbox.clone(),
         history.clone(),
         seen.clone(),
+        known_mailboxes.clone(),
     );
 
     let (sync_engine_instance, sync_event_tx, mut sync_event_rx) = SyncEngine::new_with_network(

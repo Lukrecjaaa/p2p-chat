@@ -3,14 +3,40 @@ use crate::mailbox::{make_mailbox_provider_key, make_recipient_mailbox_key};
 use crate::sync::engine::{DhtQueryState, SyncEngine};
 use anyhow::Result;
 use std::time::{Duration, Instant};
-use tracing::{debug, error, trace};
+use tracing::{debug, error, info, trace};
 
 impl SyncEngine {
     pub async fn discover_mailboxes(&mut self) -> Result<()> {
         self.discover_mailboxes_if_needed(false).await
     }
 
+    /// Load cached mailboxes from database into discovered_mailboxes
+    async fn load_cached_mailboxes(&mut self) -> Result<()> {
+        let cached = self.known_mailboxes.list_mailboxes().await?;
+
+        if !cached.is_empty() {
+            info!(
+                "Loaded {} cached mailboxes from database",
+                cached.len()
+            );
+
+            for mailbox in cached {
+                self.discovered_mailboxes.insert(mailbox.peer_id);
+                trace!("Loaded cached mailbox: {}", mailbox.peer_id);
+            }
+        }
+
+        Ok(())
+    }
+
     pub async fn discover_mailboxes_if_needed(&mut self, force: bool) -> Result<()> {
+        // On first call (when discovered_mailboxes is empty), load cached mailboxes
+        if self.discovered_mailboxes.is_empty() {
+            if let Err(e) = self.load_cached_mailboxes().await {
+                error!("Failed to load cached mailboxes: {}", e);
+            }
+        }
+
         let current_mailbox_count = self.discovered_mailboxes.len();
         let available_mailbox_count = self.get_available_mailboxes().len();
 

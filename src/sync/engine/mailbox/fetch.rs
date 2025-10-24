@@ -85,7 +85,7 @@ impl SyncEngine {
 
         match fetch_result {
             Ok(messages) => {
-                self.update_mailbox_performance(peer_id, true, start_time.elapsed());
+                self.update_mailbox_performance(peer_id, true, start_time.elapsed()).await;
 
                 if messages.is_empty() {
                     trace!("No messages found in mailbox {}", peer_id);
@@ -127,11 +127,11 @@ impl SyncEngine {
                         peer_id,
                         false,
                         start_time.elapsed() / fast_policy.max_attempts,
-                    );
+                    ).await;
                 }
 
                 if self.should_forget_mailbox(peer_id) {
-                    self.forget_failing_mailbox(peer_id);
+                    self.forget_failing_mailbox(peer_id).await;
                 }
 
                 error!(
