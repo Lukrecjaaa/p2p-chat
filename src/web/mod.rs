@@ -4,14 +4,21 @@ mod websocket;
 use crate::cli::commands::{Node, UiNotification};
 use anyhow::Result;
 use axum::{
+    http::{header, StatusCode, Uri},
+    response::Response,
     routing::get,
     Router,
 };
+use rust_embed::RustEmbed;
 use std::sync::Arc;
 use tokio::sync::{broadcast, mpsc};
 use tower_http::cors::CorsLayer;
 use tracing::info;
 use websocket::{WebSocketMessage, WebSocketState};
+
+#[derive(RustEmbed)]
+#[folder = "web-ui/dist"]
+struct Assets;
 
 pub async fn start_server(node: Arc<Node>, port: u16, mut ui_notify_rx: mpsc::UnboundedReceiver<UiNotification>) -> Result<()> {
     let (broadcast_tx, _) = broadcast::channel::<WebSocketMessage>(100);
@@ -54,6 +61,7 @@ pub async fn start_server(node: Arc<Node>, port: u16, mut ui_notify_rx: mpsc::Un
     let app = Router::new()
         .merge(api_router)
         .merge(ws_router)
+        .fallback(static_handler)
         .layer(CorsLayer::permissive());
 
     let addr = format!("127.0.0.1:{}", port);
@@ -64,4 +72,41 @@ pub async fn start_server(node: Arc<Node>, port: u16, mut ui_notify_rx: mpsc::Un
     axum::serve(listener, app).await?;
 
     Ok(())
+}
+
+async fn static_handler(uri: Uri) -> Response {
+    let path = uri.path().trim_start_matches('/');
+
+    if path.is_empty() || path == "index.html" {
+        return serve_file("index.html");
+    }
+
+    // Try to serve the file, if not found serve index.html for client-side routing
+    if Assets::get(path).is_some() {
+        serve_file(path)
+    } else {
+        serve_file("index.html")
+    }
+}
+
+fn serve_file(path: &str) -> Response {
+    match Assets::get(path) {
+        Some(content) => {
+            let mime = mime_guess::from_path(path).first_or_octet_stream();
+            let body = content.data.into_owned();
+
+            Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, mime.as_ref())
+                .body(body.into())
+                .unwrap()
+        }
+        None => {
+            Response::builder()
+                .status(StatusCode::NOT_FOUND)
+                .header(header::CONTENT_TYPE, "text/plain")
+                .body("404 Not Found".into())
+                .unwrap()
+        }
+    }
 }
