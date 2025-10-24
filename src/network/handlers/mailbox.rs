@@ -49,7 +49,31 @@ impl NetworkLayer {
         request: MailboxRequest,
         channel: ResponseChannel<MailboxResponse>,
     ) -> Result<()> {
-        debug!("Network mailbox request: {:?}", request);
+        // Log request with readable format
+        match &request {
+            MailboxRequest::Put { recipient, message } => {
+                debug!(
+                    "Network mailbox request: Put {{ recipient: {}, message_id: {}, sender: {} }}",
+                    hex::encode(&recipient[..8]),
+                    message.id,
+                    message.sender
+                );
+            }
+            MailboxRequest::Fetch { recipient, limit } => {
+                debug!(
+                    "Network mailbox request: Fetch {{ recipient: {}, limit: {} }}",
+                    hex::encode(&recipient[..8]),
+                    limit
+                );
+            }
+            MailboxRequest::Ack { recipient, msg_ids } => {
+                debug!(
+                    "Network mailbox request: Ack {{ recipient: {}, msg_ids: {:?} }}",
+                    hex::encode(&recipient[..8]),
+                    msg_ids
+                );
+            }
+        }
 
         let response = if let Some(ref storage) = self.mailbox_storage {
             match request {
@@ -57,20 +81,20 @@ impl NetworkLayer {
                     match storage.store_message(recipient, message).await {
                         Ok(()) => {
                             info!(
-                                "Successfully stored message in mailbox for recipient: {:?}",
-                                &recipient[..8]
+                                "Successfully stored message in mailbox for recipient: {}",
+                                hex::encode(&recipient[..8])
                             );
 
                             if let Err(e) = self.start_providing_for_recipient(recipient) {
                                 debug!(
-                                    "Failed to register as provider for recipient {:?}: {}",
-                                    &recipient[..8],
+                                    "Failed to register as provider for recipient {}: {}",
+                                    hex::encode(&recipient[..8]),
                                     e
                                 );
                             } else {
                                 debug!(
-                                    "Registered as provider for recipient: {:?}",
-                                    &recipient[..8]
+                                    "Registered as provider for recipient: {}",
+                                    hex::encode(&recipient[..8])
                                 );
                             }
 
@@ -86,9 +110,9 @@ impl NetworkLayer {
                     match storage.fetch_messages(recipient, limit).await {
                         Ok(messages) => {
                             info!(
-                                "Fetched {} messages for recipient: {:?}",
+                                "Fetched {} messages for recipient: {}",
                                 messages.len(),
-                                &recipient[..8]
+                                hex::encode(&recipient[..8])
                             );
                             MailboxResponse::Messages { items: messages }
                         }
@@ -102,22 +126,22 @@ impl NetworkLayer {
                     match storage.delete_messages(recipient, msg_ids).await {
                         Ok(deleted) => {
                             info!(
-                                "Deleted {} messages for recipient: {:?}",
+                                "Deleted {} messages for recipient: {}",
                                 deleted,
-                                &recipient[..8]
+                                hex::encode(&recipient[..8])
                             );
 
                             match storage.fetch_messages(recipient, 1).await {
                                 Ok(remaining_messages) if remaining_messages.is_empty() => {
                                     debug!(
-                                        "No more messages for recipient {:?}, could stop DHT announcement",
-                                        &recipient[..8]
+                                        "No more messages for recipient {}, could stop DHT announcement",
+                                        hex::encode(&recipient[..8])
                                     );
                                 }
                                 Ok(_) => {
                                     debug!(
-                                        "Still have messages for recipient {:?}, keeping DHT announcement",
-                                        &recipient[..8]
+                                        "Still have messages for recipient {}, keeping DHT announcement",
+                                        hex::encode(&recipient[..8])
                                     );
                                 }
                                 Err(e) => {
