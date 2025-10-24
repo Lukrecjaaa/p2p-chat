@@ -14,6 +14,7 @@ use actions::handle_ui_action;
 pub async fn run_tui(
     node: Arc<Node>,
     mut ui_notify_rx: tokio::sync::mpsc::UnboundedReceiver<UiNotification>,
+    web_port: u16,
 ) -> Result<()> {
     info!("🚀 Starting P2P Messenger TUI");
 
@@ -31,6 +32,12 @@ pub async fn run_tui(
 
     // Connect log buffer to UI events
     log_buffer.set_ui_sender(ui_event_tx.clone());
+
+    // Send web UI notification to chat
+    let _ = ui_event_tx.send(UIEvent::ChatMessage(format!(
+        "🌐 Web UI available at: http://127.0.0.1:{}",
+        web_port
+    )));
 
     // Initialize terminal UI
     let mut terminal_ui = TerminalUI::new(ui_event_rx, ui_action_tx.clone());

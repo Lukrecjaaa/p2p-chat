@@ -169,5 +169,5 @@ pub async fn run(
         }
     });
 
-    run_tui(node, ui_notify_rx).await
+    run_tui(node, ui_notify_rx, web_port).await
 }
