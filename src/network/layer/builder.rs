@@ -88,6 +88,7 @@ impl NetworkLayer {
             command_receiver,
             pending_requests: Default::default(),
             sync_event_tx: None,
+            ui_notify_tx: None,
             mailbox_storage,
             blocked_peers: Default::default(),
         };

@@ -103,8 +103,9 @@ pub async fn run_tui(
         }
     });
 
-    // Spawn UI notification handler (for incoming messages)
+    // Spawn UI notification handler (for incoming messages and peer events)
     let ui_event_tx_notifications = ui_event_tx.clone();
+    let node_for_notifications = node.clone();
     tokio::spawn(async move {
         while let Some(notification) = ui_notify_rx.recv().await {
             match notification {
@@ -112,6 +113,16 @@ pub async fn run_tui(
                     if let Err(e) = ui_event_tx_notifications.send(UIEvent::NewMessage(message)) {
                         debug!("Failed to send new message event: {}", e);
                         break;
+                    }
+                }
+                UiNotification::PeerConnected(_) | UiNotification::PeerDisconnected(_) => {
+                    // Update peers count immediately
+                    if let Ok(peers) = node_for_notifications.network.get_connected_peers().await {
+                        let _ = ui_event_tx_notifications.send(UIEvent::UpdatePeersCount(peers.len()));
+                        let peer_strings: Vec<String> =
+                            peers.iter().map(|p| p.to_string()).collect();
+                        let _ =
+                            ui_event_tx_notifications.send(UIEvent::UpdateDiscoveredPeers(peer_strings));
                     }
                 }
             }

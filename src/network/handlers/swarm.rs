@@ -47,10 +47,16 @@ impl NetworkLayer {
                 if let Some(ref sync_tx) = self.sync_event_tx {
                     let _ = sync_tx.send(SyncEvent::PeerConnected(peer_id));
                 }
+                if let Some(ref ui_tx) = self.ui_notify_tx {
+                    let _ = ui_tx.send(crate::cli::commands::UiNotification::PeerConnected(peer_id));
+                }
             }
 
             SwarmEvent::ConnectionClosed { peer_id, cause, .. } => {
                 info!("Disconnected from peer: {} (cause: {:?})", peer_id, cause);
+                if let Some(ref ui_tx) = self.ui_notify_tx {
+                    let _ = ui_tx.send(crate::cli::commands::UiNotification::PeerDisconnected(peer_id));
+                }
             }
 
             SwarmEvent::IncomingConnection { .. } => {

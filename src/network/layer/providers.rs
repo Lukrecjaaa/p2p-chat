@@ -1,6 +1,7 @@
 use anyhow::Result;
 use tokio::sync::mpsc;
 
+use crate::cli::commands::UiNotification;
 use crate::mailbox::{make_mailbox_provider_key, make_recipient_mailbox_key};
 use crate::sync::SyncEvent;
 
@@ -9,6 +10,10 @@ use super::NetworkLayer;
 impl NetworkLayer {
     pub fn set_sync_event_sender(&mut self, sender: mpsc::UnboundedSender<SyncEvent>) {
         self.sync_event_tx = Some(sender);
+    }
+
+    pub fn set_ui_notify_sender(&mut self, sender: mpsc::UnboundedSender<UiNotification>) {
+        self.ui_notify_tx = Some(sender);
     }
 
     pub fn bootstrap_dht(&mut self) -> Result<()> {

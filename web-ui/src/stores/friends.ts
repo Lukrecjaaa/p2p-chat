@@ -55,6 +55,18 @@ export const useFriendsStore = defineStore('friends', () => {
     return friendsMap.value.get(peerId)
   }
 
+  function updatePeerOnlineStatus(peerId: string, online: boolean) {
+    const friend = friendsMap.value.get(peerId)
+    if (friend) {
+      friend.online = online
+    }
+    if (online && !onlinePeers.value.includes(peerId)) {
+      onlinePeers.value.push(peerId)
+    } else if (!online) {
+      onlinePeers.value = onlinePeers.value.filter((p) => p !== peerId)
+    }
+  }
+
   return {
     friends,
     onlinePeers,
@@ -64,6 +76,7 @@ export const useFriendsStore = defineStore('friends', () => {
     fetchFriends,
     addFriend,
     updateOnlinePeers,
-    getFriend
+    getFriend,
+    updatePeerOnlineStatus
   }
 })

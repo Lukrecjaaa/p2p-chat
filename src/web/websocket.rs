@@ -18,6 +18,12 @@ pub enum WebSocketMessage {
         recipient: String,
         timestamp: i64,
     },
+    PeerConnected {
+        peer_id: String,
+    },
+    PeerDisconnected {
+        peer_id: String,
+    },
 }
 
 pub struct WebSocketState {

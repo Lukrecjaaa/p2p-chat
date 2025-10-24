@@ -4,6 +4,7 @@ use std::sync::Arc;
 use libp2p::{request_response::OutboundRequestId, swarm::Swarm, PeerId};
 use tokio::sync::{mpsc, oneshot};
 
+use crate::cli::commands::UiNotification;
 use crate::storage::SledMailboxStore;
 use crate::sync::SyncEvent;
 
@@ -15,6 +16,7 @@ pub struct NetworkLayer {
     pub(crate) command_receiver: mpsc::UnboundedReceiver<NetworkCommand>,
     pub(crate) pending_requests: HashMap<OutboundRequestId, oneshot::Sender<NetworkResponse>>,
     pub(crate) sync_event_tx: Option<mpsc::UnboundedSender<SyncEvent>>,
+    pub(crate) ui_notify_tx: Option<mpsc::UnboundedSender<UiNotification>>,
     pub(crate) mailbox_storage: Option<Arc<SledMailboxStore>>,
     pub(crate) blocked_peers: HashMap<PeerId, std::time::Instant>,
 }

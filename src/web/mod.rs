@@ -41,6 +41,18 @@ pub async fn start_server(node: Arc<Node>, port: u16, mut ui_notify_rx: mpsc::Un
                     };
                     let _ = broadcast_tx.send(ws_msg);
                 }
+                UiNotification::PeerConnected(peer_id) => {
+                    let ws_msg = WebSocketMessage::PeerConnected {
+                        peer_id: peer_id.to_string(),
+                    };
+                    let _ = broadcast_tx.send(ws_msg);
+                }
+                UiNotification::PeerDisconnected(peer_id) => {
+                    let ws_msg = WebSocketMessage::PeerDisconnected {
+                        peer_id: peer_id.to_string(),
+                    };
+                    let _ = broadcast_tx.send(ws_msg);
+                }
             }
         }
     });

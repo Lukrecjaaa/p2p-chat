@@ -121,6 +121,7 @@ pub async fn run(
     });
 
     network_layer.set_sync_event_sender(sync_event_tx);
+    network_layer.set_ui_notify_sender(web_notify_tx.clone());
 
     tokio::spawn(async move {
         if let Err(e) = network_layer.run(incoming_tx).await {

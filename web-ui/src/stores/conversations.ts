@@ -123,6 +123,13 @@ export const useConversationsStore = defineStore('conversations', () => {
     activeConversation.value = peerId
   }
 
+  function updatePeerOnlineStatus(peerId: string, online: boolean) {
+    const conv = conversations.value.find((c) => c.peer_id === peerId)
+    if (conv) {
+      conv.online = online
+    }
+  }
+
   return {
     conversations,
     messages,
@@ -135,6 +142,7 @@ export const useConversationsStore = defineStore('conversations', () => {
     fetchMessages,
     sendMessage,
     addMessage,
-    setActiveConversation
+    setActiveConversation,
+    updatePeerOnlineStatus
   }
 })

@@ -26,10 +26,19 @@ export interface Conversation {
   online: boolean
 }
 
-export interface WebSocketMessage {
-  type: 'new_message'
-  id: string
-  sender: string
-  recipient: string
-  timestamp: number
-}
+export type WebSocketMessage =
+  | {
+      type: 'new_message'
+      id: string
+      sender: string
+      recipient: string
+      timestamp: number
+    }
+  | {
+      type: 'peer_connected'
+      peer_id: string
+    }
+  | {
+      type: 'peer_disconnected'
+      peer_id: string
+    }

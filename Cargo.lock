@@ -2555,6 +2555,7 @@ dependencies = [
  "getrandom 0.2.16",
  "hex",
  "libp2p",
+ "mime_guess",
  "rand 0.8.5",
  "rand_core 0.6.4",
  "reedline",

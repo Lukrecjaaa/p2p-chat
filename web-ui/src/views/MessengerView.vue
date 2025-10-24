@@ -45,6 +45,12 @@ function handleWebSocketMessage(msg: WebSocketMessage) {
     const peerId = msg.sender === identityStore.identity?.peer_id ? msg.recipient : msg.sender
     conversationsStore.fetchMessages(peerId)
     conversationsStore.fetchConversations()
+  } else if (msg.type === 'peer_connected') {
+    friendsStore.updatePeerOnlineStatus(msg.peer_id, true)
+    conversationsStore.updatePeerOnlineStatus(msg.peer_id, true)
+  } else if (msg.type === 'peer_disconnected') {
+    friendsStore.updatePeerOnlineStatus(msg.peer_id, false)
+    conversationsStore.updatePeerOnlineStatus(msg.peer_id, false)
   }
 }
 

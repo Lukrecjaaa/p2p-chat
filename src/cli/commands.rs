@@ -27,6 +27,8 @@ pub struct Node {
 
 pub enum UiNotification {
     NewMessage(Message),
+    PeerConnected(PeerId),
+    PeerDisconnected(PeerId),
 }
 
 impl Node {
