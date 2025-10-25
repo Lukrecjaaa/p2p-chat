@@ -1,5 +1,5 @@
 use crate::cli::commands::Node;
-use crate::types::{Friend, Message};
+use crate::types::{DeliveryStatus, Friend, Message};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -42,6 +42,7 @@ pub struct MessageResponse {
     content: String,
     timestamp: i64,
     nonce: u64,
+    delivery_status: String,
 }
 
 #[derive(Deserialize)]
@@ -196,6 +197,7 @@ pub async fn list_conversations(State(node): State<Arc<Node>>) -> impl IntoRespo
                     content,
                     timestamp: msg.timestamp,
                     nonce: msg.nonce,
+                    delivery_status: format!("{:?}", msg.delivery_status),
                 });
             }
         }
@@ -293,6 +295,7 @@ pub async fn get_messages(
                         content,
                         timestamp: msg.timestamp,
                         nonce: msg.nonce,
+                        delivery_status: format!("{:?}", msg.delivery_status),
                     });
                 }
             }
@@ -358,6 +361,7 @@ pub async fn send_message(
         timestamp: chrono::Utc::now().timestamp(),
         content: encrypted_content,
         nonce: rand::random(),
+        delivery_status: DeliveryStatus::Sent,
     };
 
     if let Err(e) = node.history.store_message(message.clone()).await {

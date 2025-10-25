@@ -10,6 +10,8 @@ export interface Friend {
   online: boolean
 }
 
+export type DeliveryStatus = 'Sending' | 'Sent' | 'Delivered' | 'Read'
+
 export interface Message {
   id: string
   sender: string
@@ -17,6 +19,7 @@ export interface Message {
   content: string
   timestamp: number
   nonce: number
+  delivery_status: DeliveryStatus
 }
 
 export interface Conversation {
@@ -35,6 +38,7 @@ export type WebSocketMessage =
       content: string
       timestamp: number
       nonce: number
+      delivery_status: DeliveryStatus
     }
   | {
       type: 'peer_connected'

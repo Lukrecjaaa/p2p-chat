@@ -64,6 +64,7 @@ pub async fn start_server(node: Arc<Node>, port: u16, mut ui_notify_rx: mpsc::Un
                         content,
                         timestamp: msg.timestamp,
                         nonce: msg.nonce,
+                        delivery_status: format!("{:?}", msg.delivery_status),
                     };
                     let _ = broadcast_tx.send(ws_msg);
                 }

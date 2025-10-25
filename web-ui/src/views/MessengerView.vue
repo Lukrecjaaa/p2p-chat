@@ -49,6 +49,7 @@ function handleWebSocketMessage(msg: WebSocketMessage) {
       content: msg.content,
       timestamp: msg.timestamp,
       nonce: msg.nonce,
+      delivery_status: msg.delivery_status,
     }
 
     conversationsStore.insertMessage(fullMessage)

@@ -46,6 +46,9 @@
               </div>
               <div class="message-time">
                 {{ formatMessageTime(msg.timestamp) }}
+                <span v-if="msg.sender === myPeerId" class="delivery-status">
+                  {{ getDeliveryIcon(msg.delivery_status) }}
+                </span>
               </div>
             </div>
           </template>
@@ -74,6 +77,7 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useConversationsStore } from '@/stores/conversations'
 import { useIdentityStore } from '@/stores/identity'
+import type { DeliveryStatus } from '@/api/types'
 
 const conversationsStore = useConversationsStore()
 const identityStore = useIdentityStore()
@@ -142,6 +146,21 @@ function formatDateSeparator(timestamp: number): string {
     return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
   } else {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+  }
+}
+
+function getDeliveryIcon(status: DeliveryStatus): string {
+  switch (status) {
+    case 'Sending':
+      return '🕐' // Clock
+    case 'Sent':
+      return '✓'  // Single checkmark
+    case 'Delivered':
+      return '✓✓' // Double checkmark
+    case 'Read':
+      return '✓✓' // Double checkmark (blue in CSS)
+    default:
+      return ''
   }
 }
 
@@ -435,6 +454,14 @@ watch(activeConversation, async (peerId) => {
   color: #6c757d;
   margin-top: 4px;
   padding: 0 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.delivery-status {
+  font-size: 10px;
+  color: #6c757d;
 }
 
 /* Vue TransitionGroup animations */

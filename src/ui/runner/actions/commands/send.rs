@@ -8,7 +8,7 @@ use tracing::debug;
 use uuid::Uuid;
 
 use crate::cli::commands::MailboxDeliveryResult;
-use crate::types::{Friend, Message};
+use crate::types::{DeliveryStatus, Friend, Message};
 
 use super::super::context::CommandContext;
 use super::super::resolver::resolve_peer_id;
@@ -62,6 +62,7 @@ pub async fn handle_send(parts: &[&str], context: &CommandContext) -> Result<()>
         timestamp: Utc::now().timestamp_millis(),
         content: encrypted_content,
         nonce: random(),
+        delivery_status: DeliveryStatus::Sending,
     };
 
     context

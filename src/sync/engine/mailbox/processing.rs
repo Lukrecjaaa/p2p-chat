@@ -3,7 +3,7 @@ use tracing::{error, trace};
 use uuid::Uuid;
 
 use crate::cli::UiNotification;
-use crate::types::{EncryptedMessage, Message};
+use crate::types::{DeliveryStatus, EncryptedMessage, Message};
 
 use super::super::SyncEngine;
 
@@ -61,6 +61,7 @@ impl SyncEngine {
             timestamp: encrypted_msg.timestamp,
             content: encrypted_msg.encrypted_content.clone(),
             nonce: encrypted_msg.nonce,
+            delivery_status: DeliveryStatus::Delivered,
         })
     }
 }

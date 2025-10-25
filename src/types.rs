@@ -2,6 +2,20 @@ use libp2p::PeerId;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq)]
+pub enum DeliveryStatus {
+    Sending,    // Message is being sent
+    Sent,       // Message sent to outbox
+    Delivered,  // Message delivered to recipient or mailbox
+    Read,       // Message read by recipient (future feature)
+}
+
+impl Default for DeliveryStatus {
+    fn default() -> Self {
+        DeliveryStatus::Sending
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Message {
     pub id: Uuid,
@@ -10,6 +24,8 @@ pub struct Message {
     pub timestamp: i64,
     pub content: Vec<u8>, // Encrypted
     pub nonce: u64,       // For ordering
+    #[serde(default)]
+    pub delivery_status: DeliveryStatus,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

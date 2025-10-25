@@ -239,7 +239,8 @@ export const useConversationsStore = defineStore('conversations', () => {
         recipient: peerId,
         content,
         timestamp: Date.now(),
-        nonce: 0 // This will be set by backend
+        nonce: 0, // This will be set by backend
+        delivery_status: 'Sending'
       }
 
       insertMessage(newMessage)
