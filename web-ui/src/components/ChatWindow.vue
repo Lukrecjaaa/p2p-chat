@@ -29,19 +29,26 @@
           <div v-else class="loading-older">Loading older messages...</div>
         </div>
         <TransitionGroup name="message" tag="div" class="messages">
-          <div
-            v-for="msg in activeMessages"
-            :key="msg.id"
-            class="message"
-            :class="{ sent: msg.sender === myPeerId, received: msg.sender !== myPeerId }"
-          >
-            <div class="message-content">
-              {{ msg.content }}
+          <template v-for="(msg, index) in activeMessages" :key="msg.id">
+            <div
+              v-if="shouldShowDateSeparator(index)"
+              :key="`date-${msg.id}`"
+              class="date-separator"
+            >
+              <span class="date-separator-text">{{ formatDateSeparator(msg.timestamp) }}</span>
             </div>
-            <div class="message-time">
-              {{ formatMessageTime(msg.timestamp) }}
+            <div
+              class="message"
+              :class="{ sent: msg.sender === myPeerId, received: msg.sender !== myPeerId }"
+            >
+              <div class="message-content">
+                {{ msg.content }}
+              </div>
+              <div class="message-time">
+                {{ formatMessageTime(msg.timestamp) }}
+              </div>
             </div>
-          </div>
+          </template>
         </TransitionGroup>
       </div>
       <div class="message-input-container">
@@ -104,6 +111,38 @@ function truncatePeerId(peerId: string): string {
 function formatMessageTime(timestamp: number): string {
   const date = new Date(timestamp)
   return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+}
+
+function isSameDay(timestamp1: number, timestamp2: number): boolean {
+  const d1 = new Date(timestamp1)
+  const d2 = new Date(timestamp2)
+  return d1.getFullYear() === d2.getFullYear() &&
+         d1.getMonth() === d2.getMonth() &&
+         d1.getDate() === d2.getDate()
+}
+
+function shouldShowDateSeparator(index: number): boolean {
+  if (index === 0) return true // Always show for first message
+  const currentMsg = activeMessages.value[index]
+  const previousMsg = activeMessages.value[index - 1]
+  return !isSameDay(currentMsg.timestamp, previousMsg.timestamp)
+}
+
+function formatDateSeparator(timestamp: number): string {
+  const date = new Date(timestamp)
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+
+  if (isSameDay(timestamp, today.getTime())) {
+    return 'Today'
+  } else if (isSameDay(timestamp, yesterday.getTime())) {
+    return 'Yesterday'
+  } else if (date.getFullYear() === today.getFullYear()) {
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
+  } else {
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+  }
 }
 
 function checkScrollPosition() {
@@ -323,6 +362,38 @@ watch(activeConversation, async (peerId) => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.date-separator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 16px 0;
+  position: relative;
+}
+
+.date-separator::before,
+.date-separator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e0e0e0;
+}
+
+.date-separator::before {
+  margin-right: 12px;
+}
+
+.date-separator::after {
+  margin-left: 12px;
+}
+
+.date-separator-text {
+  font-size: 12px;
+  color: #6c757d;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .message {
