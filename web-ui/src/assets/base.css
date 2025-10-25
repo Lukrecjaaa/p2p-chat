@@ -34,6 +34,26 @@
   --color-text: var(--vt-c-text-light-1);
 
   --section-gap: 160px;
+
+  /* Frutiger Aero pastel color palette */
+  --aero-pink: #FFD6E8;
+  --aero-pink-light: #FFE5F0;
+  --aero-pink-dark: #FFC0DC;
+  --aero-lavender: #D4C5F9;
+  --aero-lavender-light: #E6DFF9;
+  --aero-lavender-dark: #C0ADEF;
+  --aero-purple: #E8D4FF;
+  --aero-purple-light: #F2E5FF;
+  --aero-purple-dark: #D4BFFF;
+  --aero-blue: #C8E6FF;
+  --aero-blue-light: #E0F1FF;
+  --aero-blue-dark: #A8D5FF;
+
+  /* Glass effects */
+  --aero-glass-bg: rgba(255, 255, 255, 0.75);
+  --aero-glass-border: rgba(255, 255, 255, 0.9);
+  --aero-shadow: 0 4px 16px rgba(212, 197, 249, 0.3);
+  --aero-shadow-strong: 0 8px 32px rgba(212, 197, 249, 0.5);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -61,26 +81,18 @@
 body {
   min-height: 100vh;
   color: var(--color-text);
-  background: var(--color-background);
+  background: #ecf0f5;
   transition:
     color 0.5s,
     background-color 0.5s;
   line-height: 1.6;
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    Oxygen,
-    Ubuntu,
-    Cantarell,
-    'Fira Sans',
-    'Droid Sans',
-    'Helvetica Neue',
-    sans-serif;
+  font-family: 'Segoe UI', Tahoma, sans-serif;
   font-size: 15px;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  font-family: 'Segoe UI', Tahoma, sans-serif;
 }

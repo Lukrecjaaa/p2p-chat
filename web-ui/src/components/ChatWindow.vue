@@ -1,23 +1,29 @@
 <template>
-  <div class="chat-window">
+  <div class="chat-window" :style="conversationThemeStyle">
     <div v-if="!conversation" class="empty-state">
-      <div class="empty-icon">💬</div>
+      <div class="empty-icon">
+        <img src="/conversation-select.ico" alt="" />
+      </div>
       <h3>Select a conversation</h3>
       <p>Choose a chat from the list to start messaging</p>
     </div>
     <template v-else>
-      <div class="chat-header">
+      <div class="chat-header title-bar">
         <div class="peer-info">
-          <div class="avatar">{{ getInitials(conversation.nickname || conversation.peer_id) }}</div>
+          <FramedAvatar
+            :name="conversation.nickname || conversation.peer_id"
+            :peer-id="conversation.peer_id"
+            size="small"
+          />
           <div>
-            <h3>{{ conversation.nickname || truncatePeerId(conversation.peer_id) }}</h3>
+            <div class="title-bar-text">{{ conversation.nickname || truncatePeerId(conversation.peer_id) }}</div>
             <span class="status" :class="{ online: conversation.online }">
               {{ conversation.online ? 'Online' : 'Offline' }}
             </span>
           </div>
         </div>
       </div>
-      <div class="messages-container" ref="messagesContainer" @scroll="handleScroll">
+      <div class="messages-container has-scrollbar" ref="messagesContainer" @scroll="handleScroll">
         <div v-if="hasMoreOlderMessages" class="load-more-container">
           <button
             v-if="!isLoadingOlderMessages"
@@ -42,29 +48,36 @@
               :class="{ sent: msg.sender === myPeerId, received: msg.sender !== myPeerId }"
               :data-message-id="msg.id"
             >
-              <div class="message-content">
-                {{ msg.content }}
-              </div>
-              <div class="message-time">
-                {{ formatMessageTime(msg.timestamp) }}
-                <span v-if="msg.sender === myPeerId" class="delivery-status">
-                  {{ getDeliveryIcon(msg.delivery_status) }}
-                </span>
+              <div
+                role="tooltip"
+                class="message-tooltip"
+                :class="[
+                  msg.sender === myPeerId ? 'is-bottom is-left' : 'is-bottom is-right',
+                  { tinted: msg.sender === myPeerId }
+                ]"
+              >
+                <div class="message-content">{{ msg.content }}</div>
+                <div class="message-meta">
+                  {{ formatMessageTime(msg.timestamp) }}
+                  <span v-if="msg.sender === myPeerId">
+                    · <span class="mdi" :class="getDeliveryIconClass(msg.delivery_status)"></span>
+                  </span>
+                </div>
               </div>
             </div>
           </template>
         </TransitionGroup>
       </div>
       <div class="message-input-container">
-        <form @submit.prevent="handleSend">
+        <form @submit.prevent="handleSend" class="field-row">
           <input
             v-model="messageText"
             type="text"
             placeholder="Type a message..."
-            class="message-input"
             :disabled="sending"
           />
-          <button type="submit" class="btn-send" :disabled="!messageText.trim() || sending">
+          <button type="submit" :disabled="!messageText.trim() || sending" class="send-button">
+            <img src="/send-button.ico" alt="" class="send-icon" />
             Send
           </button>
         </form>
@@ -80,6 +93,8 @@ import { useConversationsStore } from '@/stores/conversations'
 import { useIdentityStore } from '@/stores/identity'
 import { markMessageRead } from '@/api/client'
 import type { DeliveryStatus } from '@/api/types'
+import FramedAvatar from './FramedAvatar.vue'
+import { getPeerBranding, ensureReadableGradient } from '@/peerBranding'
 
 const conversationsStore = useConversationsStore()
 const identityStore = useIdentityStore()
@@ -155,9 +170,27 @@ const conversation = computed(() => {
   return conversations.value.find(c => c.peer_id === activeConversation.value)
 })
 
-function getInitials(name: string): string {
-  return name.substring(0, 2).toUpperCase()
-}
+const conversationBranding = computed(() => {
+  if (!conversation.value) return null
+  return getPeerBranding(conversation.value.peer_id)
+})
+
+const bubbleGradient = computed(() => {
+  const gradient = conversationBranding.value?.gradient
+  return ensureReadableGradient(gradient)
+})
+
+const conversationThemeStyle = computed(() => {
+  const gradient = bubbleGradient.value || null
+  const start = gradient ? gradient[0] : '#fafafa'
+  const end = gradient ? gradient[1] : '#ececec'
+  const border = gradient ? gradient[0] : '#d7dce1'
+  return {
+    '--conversation-bubble-start': start,
+    '--conversation-bubble-end': end,
+    '--conversation-border-color': border,
+  }
+})
 
 function truncatePeerId(peerId: string): string {
   if (peerId.length <= 12) return peerId
@@ -202,16 +235,16 @@ function formatDateSeparator(timestamp: number): string {
   }
 }
 
-function getDeliveryIcon(status: DeliveryStatus): string {
+function getDeliveryIconClass(status: DeliveryStatus): string {
   switch (status) {
     case 'Sending':
-      return '🕐' // Clock
+      return 'mdi-clock-outline'
     case 'Sent':
-      return '✓'  // Single checkmark
+      return 'mdi-check'
     case 'Delivered':
-      return '✓✓' // Double checkmark
+      return 'mdi-check-all'
     case 'Read':
-      return '✓✓' // Double checkmark (blue in CSS)
+      return 'mdi-check-all read'
     default:
       return ''
   }
@@ -344,7 +377,7 @@ onUnmounted(() => {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: #f8f9fa;
+  background: #f0f0f0;
 }
 
 .empty-state {
@@ -353,28 +386,33 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  color: #6c757d;
+  color: var(--aero-lavender-dark);
 }
 
 .empty-icon {
-  font-size: 64px;
   margin-bottom: 16px;
+}
+
+.empty-icon img {
+  width: 64px;
+  height: 64px;
+  image-rendering: crisp-edges;
 }
 
 .empty-state h3 {
   margin: 0 0 8px 0;
   font-size: 20px;
+  color: #333;
 }
 
 .empty-state p {
   margin: 0;
   font-size: 14px;
+  color: #6c757d;
 }
 
 .chat-header {
-  padding: 16px;
-  border-bottom: 1px solid #e0e0e0;
-  background: #fff;
+  padding: 8px 16px;
 }
 
 .peer-info {
@@ -383,26 +421,14 @@ onUnmounted(() => {
   align-items: center;
 }
 
-.peer-info .avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: #6c757d;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-}
-
-.peer-info h3 {
-  margin: 0 0 4px 0;
-  font-size: 16px;
+.peer-info .title-bar-text {
+  margin: 0 0 2px 0;
+  font-size: 14px;
   font-weight: 600;
 }
 
 .status {
-  font-size: 13px;
+  font-size: 11px;
   color: #6c757d;
 }
 
@@ -414,7 +440,7 @@ onUnmounted(() => {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
-  scroll-behavior: smooth;
+  background: white;
 }
 
 .load-more-container {
@@ -424,20 +450,8 @@ onUnmounted(() => {
 }
 
 .btn-load-more {
-  padding: 8px 16px;
-  border: 1px solid #007bff;
-  border-radius: 16px;
-  background: white;
-  color: #007bff;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-load-more:hover {
-  background: #007bff;
-  color: white;
+  padding: 6px 16px;
+  font-size: 12px;
 }
 
 .loading-older {
@@ -466,7 +480,7 @@ onUnmounted(() => {
   content: '';
   flex: 1;
   height: 1px;
-  background: #e0e0e0;
+  background: #ccc;
 }
 
 .date-separator::before {
@@ -478,16 +492,20 @@ onUnmounted(() => {
 }
 
 .date-separator-text {
-  font-size: 12px;
+  font-size: 11px;
   color: #6c757d;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  background: white;
+  padding: 4px 12px;
+  border-radius: 12px;
 }
 
 .message {
   display: flex;
   flex-direction: column;
+  margin-bottom: 4px;
 }
 
 .message.sent {
@@ -500,38 +518,76 @@ onUnmounted(() => {
   align-items: flex-start;
 }
 
+.message-tooltip {
+  max-width: 500px;
+  position: relative;
+  display: inline-block;
+  padding: 8px 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7f8fa 100%) !important;
+  border: 1px solid var(--conversation-border-color, #d7dce1);
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+}
+
+.message-tooltip::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: url('/overlay.png');
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.2;
+  border-radius: 8px;
+}
+
+.message-tooltip::after {
+  display: none !important;
+}
+
+.message-tooltip.tinted {
+  background: linear-gradient(
+    135deg,
+    var(--conversation-bubble-end, #ececec) 0%,
+    var(--conversation-bubble-start, #fafafa) 100%
+  ) !important;
+  border-color: var(--conversation-border-color, #c5ccd4);
+}
+
+.message-tooltip.tinted::before {
+  opacity: 0.8;
+}
+
 .message-content {
-  padding: 10px 14px;
-  border-radius: 16px;
   word-wrap: break-word;
+  margin-bottom: 2px;
+  color: #000;
+  font-size: 13px;
+  position: relative;
+  z-index: 2;
 }
 
-.message.sent .message-content {
-  background: #007bff;
-  color: white;
-  border-bottom-right-radius: 4px;
-}
-
-.message.received .message-content {
-  background: #fff;
-  color: #212529;
-  border-bottom-left-radius: 4px;
-  border: 1px solid #e0e0e0;
-}
-
-.message-time {
-  font-size: 11px;
-  color: #6c757d;
-  margin-top: 4px;
-  padding: 0 4px;
+.message-meta {
+  font-size: 10px;
+  color: #888;
   display: flex;
   align-items: center;
   gap: 4px;
+  position: relative;
+  z-index: 2;
 }
 
-.delivery-status {
-  font-size: 10px;
-  color: #6c757d;
+.message-meta .mdi {
+  font-size: 11px;
+}
+
+.message-meta .mdi.mdi-check-all.read {
+  color: #007bff;
 }
 
 /* Vue TransitionGroup animations */
@@ -559,45 +615,29 @@ onUnmounted(() => {
 
 .message-input-container {
   padding: 16px;
-  border-top: 1px solid #e0e0e0;
-  background: #fff;
+  background: white;
+  border-top: 1px solid #ccc;
 }
 
-.message-input-container form {
+.message-input-container .field-row {
   display: flex;
   gap: 8px;
+  margin: 0;
 }
 
-.message-input {
+.message-input-container input {
   flex: 1;
-  padding: 10px 14px;
-  border: 1px solid #e0e0e0;
-  border-radius: 24px;
-  font-size: 14px;
-  outline: none;
 }
 
-.message-input:focus {
-  border-color: #007bff;
+.send-button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.btn-send {
-  padding: 10px 24px;
-  border: none;
-  border-radius: 24px;
-  background: #007bff;
-  color: white;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.btn-send:hover:not(:disabled) {
-  background: #0056b3;
-}
-
-.btn-send:disabled {
-  background: #6c757d;
-  cursor: not-allowed;
+.send-icon {
+  width: 16px;
+  height: 16px;
+  image-rendering: crisp-edges;
 }
 </style>

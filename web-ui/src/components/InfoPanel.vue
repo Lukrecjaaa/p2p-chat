@@ -1,33 +1,50 @@
 <template>
-  <div class="info-panel">
-    <h3 class="info-title">Your Info</h3>
+  <DraggableWindow
+    :initial-x="50"
+    :initial-y="50"
+    :visible="visible"
+    @close="$emit('close')"
+  >
+    <template #title>
+      <img src="/user-info.ico" alt="" class="title-icon" />
+      <span>Your Info</span>
+    </template>
     <div v-if="identity" class="info-content">
       <div class="info-item">
         <label>Peer ID:</label>
-        <div class="info-value">
-          <code>{{ identity.peer_id }}</code>
-          <button @click="copyToClipboard(identity.peer_id)" class="btn-copy" title="Copy">
-            📋
+        <div class="field-row">
+          <input type="text" :value="identity.peer_id" readonly />
+          <button @click="copyToClipboard(identity.peer_id)" title="Copy">
+            <img src="/copy-icon.ico" alt="Copy" class="copy-icon" />
           </button>
         </div>
       </div>
       <div class="info-item">
         <label>Public Key:</label>
-        <div class="info-value">
-          <code>{{ truncateKey(identity.hpke_public_key) }}</code>
-          <button @click="copyToClipboard(identity.hpke_public_key)" class="btn-copy" title="Copy">
-            📋
+        <div class="field-row">
+          <input type="text" :value="truncateKey(identity.hpke_public_key)" readonly />
+          <button @click="copyToClipboard(identity.hpke_public_key)" title="Copy">
+            <img src="/copy-icon.ico" alt="Copy" class="copy-icon" />
           </button>
         </div>
       </div>
     </div>
     <div v-else class="info-loading">Loading...</div>
-  </div>
+  </DraggableWindow>
 </template>
 
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { useIdentityStore } from '@/stores/identity'
+import DraggableWindow from './DraggableWindow.vue'
+
+defineProps<{
+  visible: boolean
+}>()
+
+defineEmits<{
+  close: []
+}>()
 
 const identityStore = useIdentityStore()
 const { identity } = storeToRefs(identityStore)
@@ -47,76 +64,64 @@ async function copyToClipboard(text: string) {
 </script>
 
 <style scoped>
-.info-panel {
-  padding: 16px;
-  border-bottom: 1px solid #e0e0e0;
-  background: #f8f9fa;
-}
-
-.info-title {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #212529;
-}
-
 .info-content {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .info-item {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .info-item label {
   font-size: 11px;
   font-weight: 600;
-  color: #6c757d;
+  color: #333;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-.info-value {
+.field-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.field-row input {
+  flex: 1;
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+}
+
+.field-row button {
+  padding: 4px 8px;
+  min-width: auto;
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: center;
 }
 
-.info-value code {
-  flex: 1;
-  font-size: 11px;
-  padding: 6px 8px;
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: 'Monaco', 'Courier New', monospace;
-}
-
-.btn-copy {
-  padding: 4px 8px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: 14px;
-  opacity: 0.6;
-  transition: opacity 0.2s;
-}
-
-.btn-copy:hover {
-  opacity: 1;
+.copy-icon {
+  width: 16px;
+  height: 16px;
+  image-rendering: crisp-edges;
 }
 
 .info-loading {
   font-size: 12px;
   color: #6c757d;
   text-align: center;
-  padding: 8px;
+  padding: 16px;
+}
+
+.title-icon {
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: 4px;
+  image-rendering: crisp-edges;
 }
 </style>

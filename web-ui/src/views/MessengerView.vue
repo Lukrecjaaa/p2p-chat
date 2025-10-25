@@ -2,11 +2,21 @@
   <div class="messenger">
     <ChatList
       @select-conversation="handleSelectConversation"
-      @open-add-friend="showAddFriendModal = true"
+      @toggle-add-friend="showAddFriendModal = !showAddFriendModal"
+      @toggle-info="showInfoPanel = !showInfoPanel"
+      @toggle-status="showStatusPanel = !showStatusPanel"
     />
     <ChatWindow />
+    <InfoPanel
+      :visible="showInfoPanel"
+      @close="showInfoPanel = false"
+    />
+    <StatusPanel
+      :visible="showStatusPanel"
+      @close="showStatusPanel = false"
+    />
     <AddFriendModal
-      :show="showAddFriendModal"
+      :visible="showAddFriendModal"
       @close="showAddFriendModal = false"
       @success="handleFriendAdded"
     />
@@ -17,6 +27,8 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import ChatList from '@/components/ChatList.vue'
 import ChatWindow from '@/components/ChatWindow.vue'
+import InfoPanel from '@/components/InfoPanel.vue'
+import StatusPanel from '@/components/StatusPanel.vue'
 import AddFriendModal from '@/components/AddFriendModal.vue'
 import { useIdentityStore } from '@/stores/identity'
 import { useFriendsStore } from '@/stores/friends'
@@ -25,6 +37,8 @@ import { wsManager } from '@/api/websocket'
 import type { WebSocketMessage } from '@/api/types'
 
 const showAddFriendModal = ref(false)
+const showInfoPanel = ref(false)
+const showStatusPanel = ref(false)
 
 const identityStore = useIdentityStore()
 const friendsStore = useFriendsStore()
@@ -106,5 +120,6 @@ onUnmounted(() => {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+  position: relative;
 }
 </style>
