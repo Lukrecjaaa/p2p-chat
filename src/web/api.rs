@@ -358,7 +358,7 @@ pub async fn send_message(
         id: Uuid::new_v4(),
         sender: node.identity.peer_id,
         recipient: peer_id,
-        timestamp: chrono::Utc::now().timestamp(),
+        timestamp: chrono::Utc::now().timestamp_millis(),
         content: encrypted_content,
         nonce: rand::random(),
         delivery_status: DeliveryStatus::Sent,
