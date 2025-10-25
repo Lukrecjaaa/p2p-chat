@@ -1,5 +1,6 @@
 <template>
   <div class="chat-list">
+    <InfoPanel />
     <div class="chat-list-header">
       <h2>Chats</h2>
       <button @click="$emit('openAddFriend')" class="btn-add">+</button>
@@ -38,6 +39,7 @@
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useConversationsStore } from '@/stores/conversations'
+import InfoPanel from './InfoPanel.vue'
 
 defineEmits<{
   selectConversation: [peerId: string]
