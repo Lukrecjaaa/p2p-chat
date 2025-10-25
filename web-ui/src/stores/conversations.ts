@@ -280,7 +280,9 @@ export const useConversationsStore = defineStore('conversations', () => {
     for (const [, store] of messages.value) {
       const msg = store.messagesById.get(messageId)
       if (msg) {
-        msg.delivery_status = newStatus
+        // Create new object to trigger Vue reactivity
+        const updatedMsg = { ...msg, delivery_status: newStatus }
+        store.messagesById.set(messageId, updatedMsg)
         return
       }
     }
