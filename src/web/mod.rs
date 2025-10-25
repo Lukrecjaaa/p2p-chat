@@ -91,6 +91,7 @@ pub async fn start_server(node: Arc<Node>, port: u16, mut ui_notify_rx: mpsc::Un
         .route("/api/conversations/:peer_id/messages", get(api::get_messages))
         .route("/api/conversations/:peer_id/messages", axum::routing::post(api::send_message))
         .route("/api/peers/online", get(api::get_online_peers))
+        .route("/api/system/status", get(api::get_system_status))
         .with_state(node);
 
     let ws_router = Router::new()

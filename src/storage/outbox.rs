@@ -10,6 +10,7 @@ pub trait OutboxStore {
     async fn add_pending(&self, msg: Message) -> Result<()>;
     async fn get_pending(&self) -> Result<Vec<Message>>;
     async fn remove_pending(&self, msg_id: &Uuid) -> Result<()>;
+    async fn count_pending(&self) -> Result<usize>;
 }
 
 pub struct SledOutboxStore {
@@ -73,5 +74,9 @@ impl OutboxStore for SledOutboxStore {
         self.tree.remove(key.as_bytes())?;
         self.tree.flush_async().await?;
         Ok(())
+    }
+
+    async fn count_pending(&self) -> Result<usize> {
+        Ok(self.tree.len())
     }
 }

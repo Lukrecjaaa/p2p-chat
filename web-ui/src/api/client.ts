@@ -73,3 +73,15 @@ export async function getOnlinePeers(): Promise<string[]> {
   if (!response.ok) throw new Error('Failed to fetch online peers')
   return response.json()
 }
+
+export interface SystemStatus {
+  connected_peers: number
+  known_mailboxes: number
+  pending_messages: number
+}
+
+export async function getSystemStatus(): Promise<SystemStatus> {
+  const response = await fetch(`${API_BASE}/system/status`)
+  if (!response.ok) throw new Error('Failed to fetch system status')
+  return response.json()
+}

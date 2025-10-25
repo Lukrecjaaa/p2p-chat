@@ -402,6 +402,36 @@ pub async fn get_online_peers(State(node): State<Arc<Node>>) -> impl IntoRespons
     }
 }
 
+#[derive(Serialize)]
+pub struct SystemStatus {
+    connected_peers: usize,
+    known_mailboxes: usize,
+    pending_messages: usize,
+}
+
+pub async fn get_system_status(State(node): State<Arc<Node>>) -> impl IntoResponse {
+    let connected_peers = node
+        .network
+        .get_connected_peers()
+        .await
+        .unwrap_or_default()
+        .len();
+
+    let known_mailboxes = {
+        let sync_engine = node.sync_engine.lock().await;
+        sync_engine.get_mailbox_providers().len()
+    };
+
+    let pending_messages = node.outbox.count_pending().await.unwrap_or(0);
+
+    Json(SystemStatus {
+        connected_peers,
+        known_mailboxes,
+        pending_messages,
+    })
+    .into_response()
+}
+
 async fn decrypt_message_content(msg: &Message, node: &Node) -> Option<String> {
     // Determine which peer's public key to use for decryption
     let other_peer = if msg.sender == node.identity.peer_id {
