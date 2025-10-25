@@ -27,6 +27,10 @@ pub enum WebSocketMessage {
     PeerDisconnected {
         peer_id: String,
     },
+    DeliveryStatusUpdate {
+        message_id: String,
+        new_status: String,
+    },
 }
 
 pub struct WebSocketState {

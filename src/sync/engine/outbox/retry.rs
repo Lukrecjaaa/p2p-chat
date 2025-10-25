@@ -54,6 +54,21 @@ impl SyncEngine {
 
             match self.forward_pending_message(&network, &message).await {
                 Ok(true) => {
+                    // Update delivery status to Delivered
+                    if let Err(e) = self
+                        .history
+                        .update_delivery_status(&message.id, crate::types::DeliveryStatus::Delivered)
+                        .await
+                    {
+                        warn!("Failed to update delivery status for message {}: {}", message.id, e);
+                    }
+
+                    // Send notification to UI
+                    let _ = self.ui_notify_tx.send(crate::cli::commands::UiNotification::DeliveryStatusUpdate {
+                        message_id: message.id,
+                        new_status: crate::types::DeliveryStatus::Delivered,
+                    });
+
                     self.outbox.remove_pending(&message.id).await?;
                     info!(
                         "Removed message {} from outbox after successful mailbox forward.",
@@ -104,6 +119,22 @@ impl SyncEngine {
                 if should_try_direct {
                     self.backoff_manager.record_success(&message.recipient);
                 }
+
+                // Update delivery status to Delivered
+                if let Err(e) = self
+                    .history
+                    .update_delivery_status(&message.id, crate::types::DeliveryStatus::Delivered)
+                    .await
+                {
+                    warn!("Failed to update delivery status for message {}: {}", message.id, e);
+                }
+
+                // Send notification to UI
+                let _ = self.ui_notify_tx.send(crate::cli::commands::UiNotification::DeliveryStatusUpdate {
+                    message_id: message.id,
+                    new_status: crate::types::DeliveryStatus::Delivered,
+                });
+
                 self.outbox.remove_pending(&message.id).await?;
                 info!(
                     "Successfully delivered message {} directly to {}",

@@ -30,6 +30,11 @@ pub trait MessageStore {
         limit: usize,
     ) -> Result<Vec<Message>>;
     async fn count_messages(&self, own_id: &PeerId, peer: &PeerId) -> Result<usize>;
+    async fn update_delivery_status(
+        &self,
+        msg_id: &uuid::Uuid,
+        status: crate::types::DeliveryStatus,
+    ) -> Result<()>;
 }
 
 pub struct MessageHistory {
@@ -259,5 +264,31 @@ impl MessageStore for MessageHistory {
         }
 
         Ok(count)
+    }
+
+    async fn update_delivery_status(
+        &self,
+        msg_id: &uuid::Uuid,
+        status: crate::types::DeliveryStatus,
+    ) -> Result<()> {
+        // Scan all messages to find the one with the given ID
+        for result in self.tree.iter() {
+            let (key, value) = result?;
+            let mut msg = self.deserialize_message(&value)?;
+
+            if msg.id == *msg_id {
+                // Update the delivery status
+                msg.delivery_status = status;
+
+                // Re-serialize and store
+                let new_value = self.serialize_message(&msg)?;
+                self.tree.insert(key, new_value)?;
+                self.tree.flush_async().await?;
+                return Ok(());
+            }
+        }
+
+        // Message not found - not necessarily an error, might be old/deleted
+        Ok(())
     }
 }

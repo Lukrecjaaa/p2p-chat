@@ -80,6 +80,13 @@ pub async fn start_server(node: Arc<Node>, port: u16, mut ui_notify_rx: mpsc::Un
                     };
                     let _ = broadcast_tx.send(ws_msg);
                 }
+                UiNotification::DeliveryStatusUpdate { message_id, new_status } => {
+                    let ws_msg = WebSocketMessage::DeliveryStatusUpdate {
+                        message_id: message_id.to_string(),
+                        new_status: format!("{:?}", new_status),
+                    };
+                    let _ = broadcast_tx.send(ws_msg);
+                }
             }
         }
     });

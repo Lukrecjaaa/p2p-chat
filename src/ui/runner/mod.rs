@@ -125,6 +125,9 @@ pub async fn run_tui(
                             ui_event_tx_notifications.send(UIEvent::UpdateDiscoveredPeers(peer_strings));
                     }
                 }
+                UiNotification::DeliveryStatusUpdate { .. } => {
+                    // Web UI only notification, CLI doesn't need this
+                }
             }
         }
     });

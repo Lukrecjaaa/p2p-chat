@@ -29,6 +29,10 @@ pub enum UiNotification {
     NewMessage(Message),
     PeerConnected(PeerId),
     PeerDisconnected(PeerId),
+    DeliveryStatusUpdate {
+        message_id: uuid::Uuid,
+        new_status: crate::types::DeliveryStatus,
+    },
 }
 
 impl Node {
