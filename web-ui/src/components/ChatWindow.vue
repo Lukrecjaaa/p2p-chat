@@ -344,7 +344,6 @@ watch(activeConversation, async (peerId) => {
   padding: 10px 14px;
   border-radius: 16px;
   word-wrap: break-word;
-  max-width: 70%;
 }
 
 .message.sent .message-content {
