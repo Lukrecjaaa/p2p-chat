@@ -35,6 +35,7 @@ pub struct SyncEngine {
     pub known_mailboxes: Arc<dyn KnownMailboxesStore + Send + Sync>,
     pub network: Option<NetworkHandle>,
     pub ui_notify_tx: mpsc::UnboundedSender<UiNotification>,
+    pub web_notify_tx: Option<mpsc::UnboundedSender<UiNotification>>,
 }
 
 #[derive(Clone)]
@@ -78,6 +79,7 @@ impl SyncEngine {
         stores: SyncStores,
         network: NetworkHandle,
         ui_notify_tx: mpsc::UnboundedSender<UiNotification>,
+        web_notify_tx: Option<mpsc::UnboundedSender<UiNotification>>,
     ) -> Result<(
         Self,
         mpsc::UnboundedSender<SyncEvent>,
@@ -110,6 +112,7 @@ impl SyncEngine {
             known_mailboxes,
             network: Some(network),
             ui_notify_tx,
+            web_notify_tx,
         };
         Ok((engine, event_tx, event_rx))
     }

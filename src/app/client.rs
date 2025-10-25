@@ -59,6 +59,7 @@ pub async fn run(
         sync_stores,
         network_handle.clone(),
         ui_notify_tx.clone(),
+        Some(web_notify_tx.clone()),
     )?;
     let sync_engine = Arc::new(Mutex::new(sync_engine_instance));
 

@@ -69,6 +69,14 @@ impl SyncEngine {
                         new_status: crate::types::DeliveryStatus::Delivered,
                     });
 
+                    // Send notification to Web UI
+                    if let Some(ref web_tx) = self.web_notify_tx {
+                        let _ = web_tx.send(crate::cli::commands::UiNotification::DeliveryStatusUpdate {
+                            message_id: message.id,
+                            new_status: crate::types::DeliveryStatus::Delivered,
+                        });
+                    }
+
                     self.outbox.remove_pending(&message.id).await?;
                     info!(
                         "Removed message {} from outbox after successful mailbox forward.",
@@ -134,6 +142,14 @@ impl SyncEngine {
                     message_id: message.id,
                     new_status: crate::types::DeliveryStatus::Delivered,
                 });
+
+                // Send notification to Web UI
+                if let Some(ref web_tx) = self.web_notify_tx {
+                    let _ = web_tx.send(crate::cli::commands::UiNotification::DeliveryStatusUpdate {
+                        message_id: message.id,
+                        new_status: crate::types::DeliveryStatus::Delivered,
+                    });
+                }
 
                 self.outbox.remove_pending(&message.id).await?;
                 info!(
