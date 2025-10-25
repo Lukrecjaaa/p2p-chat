@@ -8,6 +8,7 @@ use sled::Db;
 #[async_trait]
 pub trait MessageStore {
     async fn store_message(&self, msg: Message) -> Result<()>;
+    async fn get_message_by_id(&self, msg_id: &uuid::Uuid) -> Result<Option<Message>>;
     async fn get_history(
         &self,
         own_id: &PeerId,
@@ -99,6 +100,20 @@ impl MessageStore for MessageHistory {
         self.tree.insert(key, value)?;
         self.tree.flush_async().await?;
         Ok(())
+    }
+
+    async fn get_message_by_id(&self, msg_id: &uuid::Uuid) -> Result<Option<Message>> {
+        // Scan all messages to find the one with the given ID
+        for result in self.tree.iter() {
+            let (_key, value) = result?;
+            let msg = self.deserialize_message(&value)?;
+
+            if msg.id == *msg_id {
+                return Ok(Some(msg));
+            }
+        }
+
+        Ok(None)
     }
 
     async fn get_history(

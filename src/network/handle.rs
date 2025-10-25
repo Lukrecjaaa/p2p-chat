@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use libp2p::{kad, PeerId};
 use tokio::sync::{mpsc, oneshot};
 
-use crate::types::{EncryptedMessage, Message};
+use crate::types::{ChatRequest, EncryptedMessage, Message};
 
 use super::message::{NetworkCommand, NetworkResponse};
 
@@ -17,6 +17,21 @@ impl NetworkHandle {
         self.command_sender.send(NetworkCommand::SendMessage {
             peer_id,
             message,
+            response: tx,
+        })?;
+
+        match rx.await? {
+            NetworkResponse::MessageSent => Ok(()),
+            NetworkResponse::Error(e) => Err(anyhow!(e)),
+            _ => Err(anyhow!("Unexpected response")),
+        }
+    }
+
+    pub async fn send_chat_request(&self, peer_id: PeerId, request: ChatRequest) -> Result<()> {
+        let (tx, rx) = oneshot::channel();
+        self.command_sender.send(NetworkCommand::SendChatRequest {
+            peer_id,
+            request,
             response: tx,
         })?;
 

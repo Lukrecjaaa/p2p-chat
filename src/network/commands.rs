@@ -30,6 +30,28 @@ impl NetworkLayer {
                 self.pending_requests.insert(request_id, response);
             }
 
+            NetworkCommand::SendChatRequest {
+                peer_id,
+                request,
+                response,
+            } => {
+                if !self.swarm.is_connected(&peer_id) {
+                    debug!(
+                        "Peer {} not connected, failing chat request immediately.",
+                        peer_id
+                    );
+                    let _ = response.send(NetworkResponse::Error("Peer not connected".to_string()));
+                    return Ok(());
+                }
+
+                let request_id = self
+                    .swarm
+                    .behaviour_mut()
+                    .chat
+                    .send_request(&peer_id, request);
+                self.pending_requests.insert(request_id, response);
+            }
+
             NetworkCommand::MailboxPut {
                 peer_id,
                 recipient,

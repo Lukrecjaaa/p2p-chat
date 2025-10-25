@@ -40,6 +40,7 @@
             <div
               class="message"
               :class="{ sent: msg.sender === myPeerId, received: msg.sender !== myPeerId }"
+              :data-message-id="msg.id"
             >
               <div class="message-content">
                 {{ msg.content }}
@@ -73,10 +74,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useConversationsStore } from '@/stores/conversations'
 import { useIdentityStore } from '@/stores/identity'
+import { markMessageRead } from '@/api/client'
 import type { DeliveryStatus } from '@/api/types'
 
 const conversationsStore = useConversationsStore()
@@ -95,8 +97,58 @@ const sending = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
 const shouldAutoScroll = ref(true)
 const isUserScrolling = ref(false)
+const readReceiptsSent = ref<Set<string>>(new Set())
 
 const myPeerId = computed(() => identity.value?.peer_id)
+
+// Intersection Observer for read receipts
+let observer: IntersectionObserver | null = null
+
+function setupIntersectionObserver() {
+  if (observer) {
+    observer.disconnect()
+  }
+
+  observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting && entry.intersectionRatio >= 0.5) {
+          const msgId = entry.target.getAttribute('data-message-id')
+          if (!msgId) return
+
+          const msg = activeMessages.value.find((m) => m.id === msgId)
+          if (!msg) return
+
+          // Only send read receipt for received messages (not sent by me)
+          if (
+            msg.sender !== myPeerId.value &&
+            msg.delivery_status !== 'Read' &&
+            !readReceiptsSent.value.has(msgId)
+          ) {
+            console.log('[ReadReceipt] Sending for message:', msgId)
+            readReceiptsSent.value.add(msgId)
+            markMessageRead(msgId).catch((err) => {
+              console.error('[ReadReceipt] Failed:', err)
+              readReceiptsSent.value.delete(msgId) // Retry later
+            })
+          }
+        }
+      })
+    },
+    { threshold: 0.5 } // 50% visible
+  )
+
+  // Observe all message elements
+  nextTick(() => {
+    if (!messagesContainer.value) return
+    const messageElements = messagesContainer.value.querySelectorAll('[data-message-id]')
+    messageElements.forEach((el) => {
+      if (observer) {
+        observer.observe(el)
+      }
+    })
+  })
+}
 
 const conversation = computed(() => {
   if (!activeConversation.value) return null
@@ -250,13 +302,17 @@ watch(activeMessages, (newMessages, oldMessages) => {
       scrollToBottom(true)
     }
   }
+
+  // Re-setup observer for new messages
+  setupIntersectionObserver()
 }, { deep: false })
 
 // Load messages when conversation changes
 watch(activeConversation, async (peerId) => {
   if (peerId) {
-    // Reset scroll state
+    // Reset scroll state and read receipts
     shouldAutoScroll.value = true
+    readReceiptsSent.value.clear()
 
     await conversationsStore.fetchMessages(peerId)
 
@@ -265,9 +321,22 @@ watch(activeConversation, async (peerId) => {
       if (messagesContainer.value) {
         messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
       }
+      // Setup observer for new conversation
+      setupIntersectionObserver()
     })
   }
 }, { immediate: true })
+
+onMounted(() => {
+  setupIntersectionObserver()
+})
+
+onUnmounted(() => {
+  if (observer) {
+    observer.disconnect()
+    observer = null
+  }
+})
 </script>
 
 <style scoped>

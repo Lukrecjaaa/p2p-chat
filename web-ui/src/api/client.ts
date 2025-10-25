@@ -58,7 +58,10 @@ export async function getMessages(
   return response.json()
 }
 
-export async function sendMessage(peerId: string, content: string): Promise<{ id: string }> {
+export async function sendMessage(
+  peerId: string,
+  content: string
+): Promise<{ id: string }> {
   const response = await fetch(`${API_BASE}/conversations/${peerId}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -66,6 +69,13 @@ export async function sendMessage(peerId: string, content: string): Promise<{ id
   })
   if (!response.ok) throw new Error('Failed to send message')
   return response.json()
+}
+
+export async function markMessageRead(messageId: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/messages/${messageId}/read`, {
+    method: 'POST'
+  })
+  if (!response.ok) throw new Error('Failed to mark message as read')
 }
 
 export async function getOnlinePeers(): Promise<string[]> {

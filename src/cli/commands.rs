@@ -22,6 +22,7 @@ pub struct Node {
     pub outbox: Arc<dyn OutboxStore + Send + Sync>,
     pub network: NetworkHandle,
     pub ui_notify_tx: mpsc::UnboundedSender<UiNotification>,
+    pub web_notify_tx: Option<mpsc::UnboundedSender<UiNotification>>,
     pub sync_engine: Arc<Mutex<SyncEngine>>,
 }
 

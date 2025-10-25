@@ -48,8 +48,22 @@ pub struct EncryptedMessage {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct DeliveryConfirmation {
+    pub original_message_id: Uuid,
+    pub timestamp: i64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ReadReceipt {
+    pub message_id: Uuid,
+    pub timestamp: i64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ChatRequest {
     SendMessage { message: Message },
+    DeliveryConfirmation { confirmation: DeliveryConfirmation },
+    ReadReceipt { receipt: ReadReceipt },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

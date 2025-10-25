@@ -40,6 +40,7 @@ async function handleFriendAdded() {
 }
 
 function handleWebSocketMessage(msg: WebSocketMessage) {
+  console.log('[WebSocket] Received message:', msg)
   if (msg.type === 'new_message') {
     // Insert the message directly - WebSocket now includes full content
     const fullMessage = {
@@ -61,6 +62,7 @@ function handleWebSocketMessage(msg: WebSocketMessage) {
     friendsStore.updatePeerOnlineStatus(msg.peer_id, false)
     conversationsStore.updatePeerOnlineStatus(msg.peer_id, false)
   } else if (msg.type === 'delivery_status_update') {
+    console.log('[WebSocket] Updating delivery status:', msg.message_id, msg.new_status)
     conversationsStore.updateMessageDeliveryStatus(msg.message_id, msg.new_status)
   }
 }

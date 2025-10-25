@@ -230,17 +230,18 @@ export const useConversationsStore = defineStore('conversations', () => {
     }
 
     try {
+      // Send message to backend
       const result = await apiSendMessage(peerId, content)
 
-      // Optimistically add message to local state
+      // Create message object with real ID and add to store
       const newMessage: Message = {
         id: result.id,
         sender: identityStore.identity.peer_id,
         recipient: peerId,
         content,
         timestamp: Date.now(),
-        nonce: 0, // This will be set by backend
-        delivery_status: 'Sending'
+        nonce: 0,
+        delivery_status: 'Sent'
       }
 
       insertMessage(newMessage)
@@ -276,16 +277,29 @@ export const useConversationsStore = defineStore('conversations', () => {
   }
 
   function updateMessageDeliveryStatus(messageId: string, newStatus: import('@/api/types').DeliveryStatus) {
-    // Find the message across all conversations
-    for (const [, store] of messages.value) {
+    console.log('[Store] Updating delivery status:', messageId, newStatus)
+
+    // Find message across all conversations
+    for (const [peerId, store] of messages.value) {
       const msg = store.messagesById.get(messageId)
       if (msg) {
-        // Create new object to trigger Vue reactivity
-        const updatedMsg = { ...msg, delivery_status: newStatus }
-        store.messagesById.set(messageId, updatedMsg)
+        console.log('[Store] Found message in', peerId, 'updating from', msg.delivery_status, 'to', newStatus)
+        // Create new object for reactivity
+        store.messagesById.set(messageId, { ...msg, delivery_status: newStatus })
+
+        // Also update in conversation last message if needed
+        const conv = conversations.value.find(c => c.peer_id === peerId)
+        if (conv?.last_message?.id === messageId) {
+          conv.last_message = { ...msg, delivery_status: newStatus }
+        }
+
         return
       }
     }
+
+    console.log('[Store] Message not found:', messageId, '(might arrive later)')
+    // Message not found - it's OK, might arrive later via WebSocket
+    // No need to queue, just ignore
   }
 
   return {

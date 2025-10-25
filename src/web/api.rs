@@ -380,12 +380,88 @@ pub async fn send_message(
             .into_response();
     }
 
-    // Try direct send
-    if let Err(e) = node.network.send_message(peer_id, message.clone()).await {
-        tracing::debug!("Direct send failed, will retry via sync: {}", e);
-    }
+    // Try direct send in background (delivery confirmation will update status)
+    let network_clone = node.network.clone();
+    let msg_clone = message.clone();
+    tokio::spawn(async move {
+        if let Err(e) = network_clone.send_message(peer_id, msg_clone).await {
+            tracing::debug!("Direct send failed, will retry via sync: {}", e);
+        }
+    });
 
     (StatusCode::OK, Json(serde_json::json!({ "id": message.id }))).into_response()
+}
+
+pub async fn mark_message_read(
+    State(node): State<Arc<Node>>,
+    Path(msg_id_str): Path<String>,
+) -> impl IntoResponse {
+    let msg_id = match Uuid::from_str(&msg_id_str) {
+        Ok(id) => id,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                format!("Invalid message ID: {}", e),
+            )
+                .into_response()
+        }
+    };
+
+    // Get the message to find the sender
+    let message = match node.history.get_message_by_id(&msg_id).await {
+        Ok(Some(msg)) => msg,
+        Ok(None) => {
+            return (StatusCode::NOT_FOUND, "Message not found").into_response();
+        }
+        Err(e) => {
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Database error: {}", e),
+            )
+                .into_response()
+        }
+    };
+
+    // Only mark as read if we're the recipient
+    if message.recipient != node.identity.peer_id {
+        return (
+            StatusCode::BAD_REQUEST,
+            "Can only mark received messages as read",
+        )
+            .into_response();
+    }
+
+    // Update local status to Read
+    if let Err(e) = node
+        .history
+        .update_delivery_status(&msg_id, DeliveryStatus::Read)
+        .await
+    {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to update status: {}", e),
+        )
+            .into_response();
+    }
+
+    // Send read receipt to sender
+    let receipt = crate::types::ReadReceipt {
+        message_id: msg_id,
+        timestamp: chrono::Utc::now().timestamp_millis(),
+    };
+
+    let read_request = crate::types::ChatRequest::ReadReceipt { receipt };
+
+    // Best effort - don't wait for result
+    let network_clone = node.network.clone();
+    let sender = message.sender;
+    tokio::spawn(async move {
+        if let Err(e) = network_clone.send_chat_request(sender, read_request).await {
+            tracing::debug!("Failed to send read receipt: {}", e);
+        }
+    });
+
+    StatusCode::OK.into_response()
 }
 
 pub async fn get_online_peers(State(node): State<Arc<Node>>) -> impl IntoResponse {

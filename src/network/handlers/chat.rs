@@ -1,5 +1,6 @@
 use super::super::{NetworkLayer, NetworkResponse};
-use crate::types::{ChatRequest, ChatResponse, Message};
+use crate::cli::commands::UiNotification;
+use crate::types::{ChatRequest, ChatResponse, DeliveryStatus, Message};
 use anyhow::Result;
 use libp2p::request_response::{self, OutboundRequestId, ResponseChannel};
 use tokio::sync::mpsc;
@@ -74,6 +75,49 @@ impl NetworkLayer {
                         },
                     );
                 }
+            }
+            ChatRequest::DeliveryConfirmation { confirmation } => {
+                info!(
+                    "Received delivery confirmation for message: {}",
+                    confirmation.original_message_id
+                );
+
+                // Notify UI about delivery status update via the ui_notify_tx channel
+                if let Some(ref ui_tx) = self.ui_notify_tx {
+                    let _ = ui_tx.send(UiNotification::DeliveryStatusUpdate {
+                        message_id: confirmation.original_message_id,
+                        new_status: DeliveryStatus::Delivered,
+                    });
+                }
+
+                // Send success response
+                let _ = self.swarm.behaviour_mut().chat.send_response(
+                    channel,
+                    ChatResponse::MessageResult {
+                        success: true,
+                        message_id: Some(confirmation.original_message_id),
+                    },
+                );
+            }
+            ChatRequest::ReadReceipt { receipt } => {
+                info!("Received read receipt for message: {}", receipt.message_id);
+
+                // Notify UI about read status update
+                if let Some(ref ui_tx) = self.ui_notify_tx {
+                    let _ = ui_tx.send(UiNotification::DeliveryStatusUpdate {
+                        message_id: receipt.message_id,
+                        new_status: DeliveryStatus::Read,
+                    });
+                }
+
+                // Send success response
+                let _ = self.swarm.behaviour_mut().chat.send_response(
+                    channel,
+                    ChatResponse::MessageResult {
+                        success: true,
+                        message_id: Some(receipt.message_id),
+                    },
+                );
             }
         }
 

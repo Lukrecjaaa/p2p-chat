@@ -54,29 +54,8 @@ impl SyncEngine {
 
             match self.forward_pending_message(&network, &message).await {
                 Ok(true) => {
-                    // Update delivery status to Delivered
-                    if let Err(e) = self
-                        .history
-                        .update_delivery_status(&message.id, crate::types::DeliveryStatus::Delivered)
-                        .await
-                    {
-                        warn!("Failed to update delivery status for message {}: {}", message.id, e);
-                    }
-
-                    // Send notification to UI
-                    let _ = self.ui_notify_tx.send(crate::cli::commands::UiNotification::DeliveryStatusUpdate {
-                        message_id: message.id,
-                        new_status: crate::types::DeliveryStatus::Delivered,
-                    });
-
-                    // Send notification to Web UI
-                    if let Some(ref web_tx) = self.web_notify_tx {
-                        let _ = web_tx.send(crate::cli::commands::UiNotification::DeliveryStatusUpdate {
-                            message_id: message.id,
-                            new_status: crate::types::DeliveryStatus::Delivered,
-                        });
-                    }
-
+                    // Message successfully forwarded to mailbox
+                    // Delivery status will be updated when recipient fetches and sends confirmation
                     self.outbox.remove_pending(&message.id).await?;
                     info!(
                         "Removed message {} from outbox after successful mailbox forward.",
@@ -128,29 +107,8 @@ impl SyncEngine {
                     self.backoff_manager.record_success(&message.recipient);
                 }
 
-                // Update delivery status to Delivered
-                if let Err(e) = self
-                    .history
-                    .update_delivery_status(&message.id, crate::types::DeliveryStatus::Delivered)
-                    .await
-                {
-                    warn!("Failed to update delivery status for message {}: {}", message.id, e);
-                }
-
-                // Send notification to UI
-                let _ = self.ui_notify_tx.send(crate::cli::commands::UiNotification::DeliveryStatusUpdate {
-                    message_id: message.id,
-                    new_status: crate::types::DeliveryStatus::Delivered,
-                });
-
-                // Send notification to Web UI
-                if let Some(ref web_tx) = self.web_notify_tx {
-                    let _ = web_tx.send(crate::cli::commands::UiNotification::DeliveryStatusUpdate {
-                        message_id: message.id,
-                        new_status: crate::types::DeliveryStatus::Delivered,
-                    });
-                }
-
+                // Direct delivery succeeded
+                // Delivery confirmation from recipient will update the status
                 self.outbox.remove_pending(&message.id).await?;
                 info!(
                     "Successfully delivered message {} directly to {}",

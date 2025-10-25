@@ -44,6 +44,7 @@ pub async fn run(
     let (incoming_tx, mut incoming_rx) = mpsc::unbounded_channel::<Message>();
     let (ui_notify_tx, ui_notify_rx) = mpsc::unbounded_channel::<UiNotification>();
     let (web_notify_tx, web_notify_rx) = mpsc::unbounded_channel::<UiNotification>();
+    let (network_notify_tx, mut network_notify_rx) = mpsc::unbounded_channel::<UiNotification>();
 
     let sync_stores = SyncStores::new(
         friends.clone(),
@@ -72,6 +73,7 @@ pub async fn run(
         outbox: outbox.clone(),
         network: network_handle,
         ui_notify_tx,
+        web_notify_tx: Some(web_notify_tx.clone()),
         sync_engine: sync_engine.clone(),
     });
 
@@ -122,7 +124,7 @@ pub async fn run(
     });
 
     network_layer.set_sync_event_sender(sync_event_tx);
-    network_layer.set_ui_notify_sender(web_notify_tx.clone());
+    network_layer.set_ui_notify_sender(network_notify_tx.clone());
 
     tokio::spawn(async move {
         if let Err(e) = network_layer.run(incoming_tx).await {
@@ -130,8 +132,35 @@ pub async fn run(
         }
     });
 
+    // Handle network notifications (delivery confirmations, read receipts)
+    let node_for_network = node.clone();
+    let web_notify_tx_for_network = web_notify_tx.clone();
+    tokio::spawn(async move {
+        while let Some(notification) = network_notify_rx.recv().await {
+            match notification {
+                UiNotification::DeliveryStatusUpdate { message_id, new_status } => {
+                    // Update database
+                    if let Err(e) = node_for_network.history.update_delivery_status(&message_id, new_status).await {
+                        error!("Failed to update delivery status in database: {}", e);
+                    }
+
+                    // Forward to web UI
+                    let _ = web_notify_tx_for_network.send(UiNotification::DeliveryStatusUpdate {
+                        message_id,
+                        new_status,
+                    });
+                }
+                // Forward other notifications as-is
+                other => {
+                    let _ = web_notify_tx_for_network.send(other);
+                }
+            }
+        }
+    });
+
     let node_clone = node.clone();
     let seen_clone = seen.clone();
+    let web_notify_tx_clone = web_notify_tx.clone();
     tokio::spawn(async move {
         while let Some(message) = incoming_rx.recv().await {
             let already_seen = match seen_clone.is_seen(&message.id).await {
@@ -156,10 +185,29 @@ pub async fn run(
                 error!("Failed to mark message {} as seen: {}", message.id, e);
             }
 
+            // Send delivery confirmation back to sender
+            let confirmation = crate::types::DeliveryConfirmation {
+                original_message_id: message.id,
+                timestamp: chrono::Utc::now().timestamp_millis(),
+            };
+
+            let confirmation_request = crate::types::ChatRequest::DeliveryConfirmation {
+                confirmation,
+            };
+
+            let network_clone = node_clone.network.clone();
+            let sender = message.sender;
+            tokio::spawn(async move {
+                if let Err(e) = network_clone.send_chat_request(sender, confirmation_request).await
+                {
+                    debug!("Failed to send delivery confirmation: {}", e);
+                }
+            });
+
             let _ = node_clone
                 .ui_notify_tx
                 .send(UiNotification::NewMessage(message.clone()));
-            let _ = web_notify_tx.send(UiNotification::NewMessage(message));
+            let _ = web_notify_tx_clone.send(UiNotification::NewMessage(message));
         }
     });
 

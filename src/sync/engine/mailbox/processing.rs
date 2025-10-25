@@ -1,9 +1,9 @@
 use anyhow::Result;
-use tracing::{error, trace};
+use tracing::{debug, error, trace};
 use uuid::Uuid;
 
 use crate::cli::UiNotification;
-use crate::types::{DeliveryStatus, EncryptedMessage, Message};
+use crate::types::{ChatRequest, DeliveryConfirmation, DeliveryStatus, EncryptedMessage, Message};
 
 use super::super::SyncEngine;
 
@@ -40,8 +40,31 @@ impl SyncEngine {
                 error!("Failed to mark message {} as seen: {}", encrypted_msg.id, e);
             }
 
-            if let Err(e) = self.ui_notify_tx.send(UiNotification::NewMessage(message)) {
+            // Send delivery confirmation back to sender
+            let confirmation = DeliveryConfirmation {
+                original_message_id: encrypted_msg.id,
+                timestamp: chrono::Utc::now().timestamp_millis(),
+            };
+
+            let confirmation_request = ChatRequest::DeliveryConfirmation { confirmation };
+
+            if let Some(ref network) = self.network {
+                let network_clone = network.clone();
+                let sender = encrypted_msg.sender;
+                tokio::spawn(async move {
+                    if let Err(e) = network_clone.send_chat_request(sender, confirmation_request).await {
+                        debug!("Failed to send delivery confirmation from mailbox: {}", e);
+                    }
+                });
+            }
+
+            if let Err(e) = self.ui_notify_tx.send(UiNotification::NewMessage(message.clone())) {
                 trace!("UI notify channel closed while reporting message: {}", e);
+            }
+
+            // Also send to web UI if available
+            if let Some(ref web_tx) = self.web_notify_tx {
+                let _ = web_tx.send(UiNotification::NewMessage(message));
             }
 
             processed_msg_ids.push(encrypted_msg.id);

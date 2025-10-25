@@ -1,4 +1,4 @@
-use crate::types::{EncryptedMessage, Message};
+use crate::types::{ChatRequest, EncryptedMessage, Message};
 use anyhow::Result;
 use libp2p::{kad, PeerId};
 use tokio::sync::oneshot;
@@ -18,6 +18,11 @@ pub enum NetworkCommand {
     SendMessage {
         peer_id: PeerId,
         message: Message,
+        response: oneshot::Sender<NetworkResponse>,
+    },
+    SendChatRequest {
+        peer_id: PeerId,
+        request: ChatRequest,
         response: oneshot::Sender<NetworkResponse>,
     },
     GetConnectedPeers {
