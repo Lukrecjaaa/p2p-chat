@@ -161,8 +161,8 @@ export const useConversationsStore = defineStore('conversations', () => {
       })
 
       if (store.sortedIds.length > 0) {
-        store.oldestLoadedId = store.sortedIds[0]
-        store.newestLoadedId = store.sortedIds[store.sortedIds.length - 1]
+        store.oldestLoadedId = store.sortedIds[0] || null
+        store.newestLoadedId = store.sortedIds[store.sortedIds.length - 1] || null
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to fetch messages'
@@ -213,7 +213,7 @@ export const useConversationsStore = defineStore('conversations', () => {
 
       // Update oldest loaded ID
       if (store.sortedIds.length > 0) {
-        store.oldestLoadedId = store.sortedIds[0]
+        store.oldestLoadedId = store.sortedIds[0] || null
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to load older messages'
@@ -275,6 +275,17 @@ export const useConversationsStore = defineStore('conversations', () => {
     }
   }
 
+  function updateMessageDeliveryStatus(messageId: string, newStatus: import('@/api/types').DeliveryStatus) {
+    // Find the message across all conversations
+    for (const [, store] of messages.value) {
+      const msg = store.messagesById.get(messageId)
+      if (msg) {
+        msg.delivery_status = newStatus
+        return
+      }
+    }
+  }
+
   return {
     conversations,
     messages,
@@ -293,5 +304,6 @@ export const useConversationsStore = defineStore('conversations', () => {
     setActiveConversation,
     updatePeerOnlineStatus,
     updateConversationLastMessage,
+    updateMessageDeliveryStatus,
   }
 })

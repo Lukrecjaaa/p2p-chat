@@ -129,6 +129,7 @@ function shouldShowDateSeparator(index: number): boolean {
   if (index === 0) return true // Always show for first message
   const currentMsg = activeMessages.value[index]
   const previousMsg = activeMessages.value[index - 1]
+  if (!currentMsg || !previousMsg) return false
   return !isSameDay(currentMsg.timestamp, previousMsg.timestamp)
 }
 

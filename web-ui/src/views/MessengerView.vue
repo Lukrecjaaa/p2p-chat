@@ -60,6 +60,8 @@ function handleWebSocketMessage(msg: WebSocketMessage) {
   } else if (msg.type === 'peer_disconnected') {
     friendsStore.updatePeerOnlineStatus(msg.peer_id, false)
     conversationsStore.updatePeerOnlineStatus(msg.peer_id, false)
+  } else if (msg.type === 'delivery_status_update') {
+    conversationsStore.updateMessageDeliveryStatus(msg.message_id, msg.new_status)
   }
 }
 

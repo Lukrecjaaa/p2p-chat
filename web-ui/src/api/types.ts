@@ -48,3 +48,8 @@ export type WebSocketMessage =
       type: 'peer_disconnected'
       peer_id: string
     }
+  | {
+      type: 'delivery_status_update'
+      message_id: string
+      new_status: DeliveryStatus
+    }
