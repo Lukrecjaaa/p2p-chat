@@ -37,8 +37,23 @@ export async function listConversations(): Promise<Conversation[]> {
   return response.json()
 }
 
-export async function getMessages(peerId: string): Promise<Message[]> {
-  const response = await fetch(`${API_BASE}/conversations/${peerId}/messages`)
+export async function getMessages(
+  peerId: string,
+  mode: 'latest' | 'before' | 'after' = 'latest',
+  limit: number = 50,
+  referenceId?: string
+): Promise<Message[]> {
+  const params = new URLSearchParams()
+  params.set('mode', mode)
+  params.set('limit', limit.toString())
+
+  if (mode === 'before' && referenceId) {
+    params.set('before_id', referenceId)
+  } else if (mode === 'after' && referenceId) {
+    params.set('after_id', referenceId)
+  }
+
+  const response = await fetch(`${API_BASE}/conversations/${peerId}/messages?${params}`)
   if (!response.ok) throw new Error('Failed to fetch messages')
   return response.json()
 }

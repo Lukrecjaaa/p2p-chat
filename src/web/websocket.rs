@@ -16,7 +16,9 @@ pub enum WebSocketMessage {
         id: String,
         sender: String,
         recipient: String,
+        content: String,
         timestamp: i64,
+        nonce: u64,
     },
     PeerConnected {
         peer_id: String,

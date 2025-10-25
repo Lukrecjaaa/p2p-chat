@@ -17,9 +17,18 @@
           </div>
         </div>
       </div>
-      <div class="messages-container" ref="messagesContainer">
-        <div v-if="loading" class="loading">Loading messages...</div>
-        <div v-else class="messages">
+      <div class="messages-container" ref="messagesContainer" @scroll="handleScroll">
+        <div v-if="hasMoreOlderMessages" class="load-more-container">
+          <button
+            v-if="!isLoadingOlderMessages"
+            @click="loadMore"
+            class="btn-load-more"
+          >
+            Load older messages
+          </button>
+          <div v-else class="loading-older">Loading older messages...</div>
+        </div>
+        <TransitionGroup name="message" tag="div" class="messages">
           <div
             v-for="msg in activeMessages"
             :key="msg.id"
@@ -33,7 +42,7 @@
               {{ formatMessageTime(msg.timestamp) }}
             </div>
           </div>
-        </div>
+        </TransitionGroup>
       </div>
       <div class="message-input-container">
         <form @submit.prevent="handleSend">
@@ -61,12 +70,20 @@ import { useIdentityStore } from '@/stores/identity'
 
 const conversationsStore = useConversationsStore()
 const identityStore = useIdentityStore()
-const { activeConversation, activeMessages, conversations, loading } = storeToRefs(conversationsStore)
+const {
+  activeConversation,
+  activeMessages,
+  conversations,
+  isLoadingOlderMessages,
+  hasMoreOlderMessages,
+} = storeToRefs(conversationsStore)
 const { identity } = storeToRefs(identityStore)
 
 const messageText = ref('')
 const sending = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
+const shouldAutoScroll = ref(true)
+const isUserScrolling = ref(false)
 
 const myPeerId = computed(() => identity.value?.peer_id)
 
@@ -89,6 +106,63 @@ function formatMessageTime(timestamp: number): string {
   return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 }
 
+function checkScrollPosition() {
+  if (!messagesContainer.value) return
+
+  const container = messagesContainer.value
+  const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+
+  // Consider "at bottom" if within 100px
+  shouldAutoScroll.value = distanceFromBottom < 100
+}
+
+function handleScroll() {
+  checkScrollPosition()
+
+  // Check if user scrolled near the top - trigger load more
+  if (messagesContainer.value && messagesContainer.value.scrollTop < 100) {
+    if (hasMoreOlderMessages.value && !isLoadingOlderMessages.value) {
+      loadMore()
+    }
+  }
+}
+
+async function loadMore() {
+  if (!activeConversation.value || isLoadingOlderMessages.value) return
+
+  const container = messagesContainer.value
+  if (!container) return
+
+  // Save scroll position before loading
+  const oldScrollHeight = container.scrollHeight
+  const oldScrollTop = container.scrollTop
+
+  try {
+    await conversationsStore.loadOlderMessages(activeConversation.value)
+
+    // Restore scroll position after loading older messages
+    await nextTick()
+    const newScrollHeight = container.scrollHeight
+    const heightDifference = newScrollHeight - oldScrollHeight
+    container.scrollTop = oldScrollTop + heightDifference
+  } catch (e) {
+    console.error('Failed to load older messages:', e)
+  }
+}
+
+function scrollToBottom(smooth = false) {
+  if (!shouldAutoScroll.value) return
+
+  nextTick(() => {
+    if (messagesContainer.value) {
+      messagesContainer.value.scrollTo({
+        top: messagesContainer.value.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto'
+      })
+    }
+  })
+}
+
 async function handleSend() {
   if (!messageText.value.trim() || !activeConversation.value || sending.value) return
 
@@ -98,7 +172,8 @@ async function handleSend() {
 
   try {
     await conversationsStore.sendMessage(activeConversation.value, content)
-    scrollToBottom()
+    // Scroll to bottom smoothly after sending
+    scrollToBottom(true)
   } catch (e) {
     console.error('Failed to send message:', e)
     messageText.value = content // Restore message on error
@@ -107,24 +182,31 @@ async function handleSend() {
   }
 }
 
-function scrollToBottom() {
-  nextTick(() => {
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+// Watch for new messages and scroll to bottom if user is near bottom
+watch(activeMessages, (newMessages, oldMessages) => {
+  // Only auto-scroll if a new message was added at the end
+  if (newMessages.length > (oldMessages?.length || 0)) {
+    const wasAtBottom = shouldAutoScroll.value
+    if (wasAtBottom) {
+      scrollToBottom(true)
     }
-  })
-}
-
-// Watch for new messages and scroll to bottom
-watch(activeMessages, () => {
-  scrollToBottom()
-}, { deep: true })
+  }
+}, { deep: false })
 
 // Load messages when conversation changes
 watch(activeConversation, async (peerId) => {
   if (peerId) {
+    // Reset scroll state
+    shouldAutoScroll.value = true
+
     await conversationsStore.fetchMessages(peerId)
-    scrollToBottom()
+
+    // Scroll to bottom immediately for new conversation
+    nextTick(() => {
+      if (messagesContainer.value) {
+        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+      }
+    })
   }
 }, { immediate: true })
 </script>
@@ -204,12 +286,37 @@ watch(activeConversation, async (peerId) => {
   flex: 1;
   overflow-y: auto;
   padding: 16px;
+  scroll-behavior: smooth;
 }
 
-.loading {
+.load-more-container {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 16px 0;
+}
+
+.btn-load-more {
+  padding: 8px 16px;
+  border: 1px solid #007bff;
+  border-radius: 16px;
+  background: white;
+  color: #007bff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-load-more:hover {
+  background: #007bff;
+  color: white;
+}
+
+.loading-older {
   text-align: center;
   color: #6c757d;
-  padding: 16px;
+  font-size: 13px;
+  padding: 8px;
 }
 
 .messages {
@@ -237,6 +344,7 @@ watch(activeConversation, async (peerId) => {
   padding: 10px 14px;
   border-radius: 16px;
   word-wrap: break-word;
+  max-width: 70%;
 }
 
 .message.sent .message-content {
@@ -257,6 +365,29 @@ watch(activeConversation, async (peerId) => {
   color: #6c757d;
   margin-top: 4px;
   padding: 0 4px;
+}
+
+/* Vue TransitionGroup animations */
+.message-enter-active {
+  transition: all 0.3s ease-out;
+}
+
+.message-enter-from {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.message-leave-active {
+  transition: all 0.2s ease-in;
+}
+
+.message-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.message-move {
+  transition: transform 0.3s ease;
 }
 
 .message-input-container {

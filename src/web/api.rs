@@ -1,7 +1,7 @@
 use crate::cli::commands::Node;
 use crate::types::{Friend, Message};
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
@@ -47,6 +47,29 @@ pub struct MessageResponse {
 #[derive(Deserialize)]
 pub struct SendMessageRequest {
     content: String,
+}
+
+#[derive(Deserialize)]
+pub struct GetMessagesQuery {
+    #[serde(default)]
+    mode: MessageQueryMode,
+    #[serde(default = "default_limit")]
+    limit: usize,
+    before_id: Option<String>,
+    after_id: Option<String>,
+}
+
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+enum MessageQueryMode {
+    #[default]
+    Latest,
+    Before,
+    After,
+}
+
+fn default_limit() -> usize {
+    50
 }
 
 #[derive(Serialize)]
@@ -198,6 +221,7 @@ pub async fn list_conversations(State(node): State<Arc<Node>>) -> impl IntoRespo
 pub async fn get_messages(
     State(node): State<Arc<Node>>,
     Path(peer_id_str): Path<String>,
+    Query(query): Query<GetMessagesQuery>,
 ) -> impl IntoResponse {
     let peer_id = match PeerId::from_str(&peer_id_str) {
         Ok(id) => id,
@@ -210,11 +234,54 @@ pub async fn get_messages(
         }
     };
 
-    match node
-        .history
-        .get_history(&node.identity.peer_id, &peer_id, 1000)
-        .await
-    {
+    let messages_result = match query.mode {
+        MessageQueryMode::Latest => {
+            node.history
+                .get_history(&node.identity.peer_id, &peer_id, query.limit)
+                .await
+        }
+        MessageQueryMode::Before => {
+            let before_id = match &query.before_id {
+                Some(id_str) => match Uuid::from_str(id_str) {
+                    Ok(id) => id,
+                    Err(e) => {
+                        return (
+                            StatusCode::BAD_REQUEST,
+                            format!("Invalid before_id: {}", e),
+                        )
+                            .into_response()
+                    }
+                },
+                None => {
+                    return (StatusCode::BAD_REQUEST, "before_id is required for mode=before")
+                        .into_response()
+                }
+            };
+            node.history
+                .get_messages_before(&node.identity.peer_id, &peer_id, &before_id, query.limit)
+                .await
+        }
+        MessageQueryMode::After => {
+            let after_id = match &query.after_id {
+                Some(id_str) => match Uuid::from_str(id_str) {
+                    Ok(id) => id,
+                    Err(e) => {
+                        return (StatusCode::BAD_REQUEST, format!("Invalid after_id: {}", e))
+                            .into_response()
+                    }
+                },
+                None => {
+                    return (StatusCode::BAD_REQUEST, "after_id is required for mode=after")
+                        .into_response()
+                }
+            };
+            node.history
+                .get_messages_after(&node.identity.peer_id, &peer_id, &after_id, query.limit)
+                .await
+        }
+    };
+
+    match messages_result {
         Ok(messages) => {
             let mut response = Vec::new();
             for msg in messages.iter() {

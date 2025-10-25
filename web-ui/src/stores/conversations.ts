@@ -4,9 +4,18 @@ import type { Conversation, Message } from '@/api/types'
 import { listConversations, getMessages, sendMessage as apiSendMessage } from '@/api/client'
 import { useIdentityStore } from './identity'
 
+interface MessageStore {
+  messagesById: Map<string, Message>
+  sortedIds: string[]
+  oldestLoadedId: string | null
+  newestLoadedId: string | null
+  hasMoreOlder: boolean
+  isLoadingOlder: boolean
+}
+
 export const useConversationsStore = defineStore('conversations', () => {
   const conversations = ref<Conversation[]>([])
-  const messages = ref<Map<string, Message[]>>(new Map())
+  const messages = ref<Map<string, MessageStore>>(new Map())
   const activeConversation = ref<string | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
@@ -21,8 +30,93 @@ export const useConversationsStore = defineStore('conversations', () => {
 
   const activeMessages = computed(() => {
     if (!activeConversation.value) return []
-    return messages.value.get(activeConversation.value) || []
+    const store = messages.value.get(activeConversation.value)
+    if (!store) return []
+
+    return store.sortedIds.map(id => store.messagesById.get(id)!)
   })
+
+  const isLoadingOlderMessages = computed(() => {
+    if (!activeConversation.value) return false
+    const store = messages.value.get(activeConversation.value)
+    return store?.isLoadingOlder || false
+  })
+
+  const hasMoreOlderMessages = computed(() => {
+    if (!activeConversation.value) return false
+    const store = messages.value.get(activeConversation.value)
+    return store?.hasMoreOlder || false
+  })
+
+  function getOrCreateMessageStore(peerId: string): MessageStore {
+    if (!messages.value.has(peerId)) {
+      messages.value.set(peerId, {
+        messagesById: new Map(),
+        sortedIds: [],
+        oldestLoadedId: null,
+        newestLoadedId: null,
+        hasMoreOlder: true,
+        isLoadingOlder: false,
+      })
+    }
+    return messages.value.get(peerId)!
+  }
+
+  function insertMessage(msg: Message) {
+    const identityStore = useIdentityStore()
+    if (!identityStore.identity) return
+
+    // Determine which peer this message is with
+    const peerId = msg.sender === identityStore.identity.peer_id ? msg.recipient : msg.sender
+    const store = getOrCreateMessageStore(peerId)
+
+    // Check if message already exists (deduplication)
+    if (store.messagesById.has(msg.id)) {
+      return
+    }
+
+    // Add message to map
+    store.messagesById.set(msg.id, msg)
+
+    // Insert into sorted array maintaining order
+    const insertIndex = store.sortedIds.findIndex(id => {
+      const existing = store.messagesById.get(id)!
+      return msg.timestamp < existing.timestamp ||
+             (msg.timestamp === existing.timestamp && msg.nonce < existing.nonce)
+    })
+
+    if (insertIndex === -1) {
+      // Add to end
+      store.sortedIds.push(msg.id)
+    } else {
+      // Insert at correct position
+      store.sortedIds.splice(insertIndex, 0, msg.id)
+    }
+
+    // Update boundaries
+    if (!store.oldestLoadedId || store.sortedIds[0] === msg.id) {
+      store.oldestLoadedId = msg.id
+    }
+    if (!store.newestLoadedId || store.sortedIds[store.sortedIds.length - 1] === msg.id) {
+      store.newestLoadedId = msg.id
+    }
+
+    // Update conversation last message if this is newer
+    const conv = conversations.value.find(c => c.peer_id === peerId)
+    if (conv) {
+      if (!conv.last_message || msg.timestamp > conv.last_message.timestamp) {
+        conv.last_message = msg
+      }
+    } else {
+      // Create new conversation if it doesn't exist
+      conversations.value.push({
+        peer_id: peerId,
+        nickname: null,
+        last_message: msg,
+        online: false
+      })
+    }
+  }
 
   async function fetchConversations() {
     loading.value = true
@@ -38,16 +132,94 @@ export const useConversationsStore = defineStore('conversations', () => {
   }
 
   async function fetchMessages(peerId: string) {
-    loading.value = true
-    error.value = null
+    const store = getOrCreateMessageStore(peerId)
+
     try {
-      const msgs = await getMessages(peerId)
-      messages.value.set(peerId, msgs)
+      const msgs = await getMessages(peerId, 'latest', 50)
+
+      // Clear existing messages for this peer and reload
+      store.messagesById.clear()
+      store.sortedIds = []
+      store.oldestLoadedId = null
+      store.newestLoadedId = null
+      store.hasMoreOlder = msgs.length === 50
+
+      // Insert all messages
+      msgs.forEach(msg => {
+        store.messagesById.set(msg.id, msg)
+        store.sortedIds.push(msg.id)
+      })
+
+      // Sort by timestamp and nonce
+      store.sortedIds.sort((a, b) => {
+        const msgA = store.messagesById.get(a)!
+        const msgB = store.messagesById.get(b)!
+        if (msgA.timestamp !== msgB.timestamp) {
+          return msgA.timestamp - msgB.timestamp
+        }
+        return msgA.nonce - msgB.nonce
+      })
+
+      if (store.sortedIds.length > 0) {
+        store.oldestLoadedId = store.sortedIds[0]
+        store.newestLoadedId = store.sortedIds[store.sortedIds.length - 1]
+      }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to fetch messages'
       throw e
+    }
+  }
+
+  async function loadOlderMessages(peerId: string) {
+    const store = getOrCreateMessageStore(peerId)
+
+    if (!store.hasMoreOlder || store.isLoadingOlder || !store.oldestLoadedId) {
+      return
+    }
+
+    store.isLoadingOlder = true
+    error.value = null
+
+    try {
+      const msgs = await getMessages(peerId, 'before', 50, store.oldestLoadedId)
+
+      if (msgs.length === 0) {
+        store.hasMoreOlder = false
+        return
+      }
+
+      // Check if we got fewer messages than requested
+      if (msgs.length < 50) {
+        store.hasMoreOlder = false
+      }
+
+      // Insert all older messages
+      msgs.forEach(msg => {
+        if (!store.messagesById.has(msg.id)) {
+          store.messagesById.set(msg.id, msg)
+          store.sortedIds.unshift(msg.id) // Add to beginning
+        }
+      })
+
+      // Re-sort to ensure correct order
+      store.sortedIds.sort((a, b) => {
+        const msgA = store.messagesById.get(a)!
+        const msgB = store.messagesById.get(b)!
+        if (msgA.timestamp !== msgB.timestamp) {
+          return msgA.timestamp - msgB.timestamp
+        }
+        return msgA.nonce - msgB.nonce
+      })
+
+      // Update oldest loaded ID
+      if (store.sortedIds.length > 0) {
+        store.oldestLoadedId = store.sortedIds[0]
+      }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to load older messages'
+      throw e
     } finally {
-      loading.value = false
+      store.isLoadingOlder = false
     }
   }
 
@@ -70,52 +242,10 @@ export const useConversationsStore = defineStore('conversations', () => {
         nonce: 0 // This will be set by backend
       }
 
-      const peerMessages = messages.value.get(peerId) || []
-      messages.value.set(peerId, [...peerMessages, newMessage])
-
-      // Update conversation last message
-      const conv = conversations.value.find(c => c.peer_id === peerId)
-      if (conv) {
-        conv.last_message = newMessage
-      }
+      insertMessage(newMessage)
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to send message'
       throw e
-    }
-  }
-
-  function addMessage(msg: Message) {
-    const identityStore = useIdentityStore()
-    if (!identityStore.identity) return
-
-    // Determine which peer this message is with
-    const peerId = msg.sender === identityStore.identity.peer_id ? msg.recipient : msg.sender
-
-    const peerMessages = messages.value.get(peerId) || []
-
-    // Check if message already exists
-    if (peerMessages.some(m => m.id === msg.id)) {
-      return
-    }
-
-    // Insert message in chronological order (handle past message insertion)
-    const newMessages = [...peerMessages, msg].sort((a, b) => a.timestamp - b.timestamp)
-    messages.value.set(peerId, newMessages)
-
-    // Update conversation last message if this is newer
-    const conv = conversations.value.find(c => c.peer_id === peerId)
-    if (conv) {
-      if (!conv.last_message || msg.timestamp > conv.last_message.timestamp) {
-        conv.last_message = msg
-      }
-    } else {
-      // Create new conversation if it doesn't exist
-      conversations.value.push({
-        peer_id: peerId,
-        nickname: null,
-        last_message: msg,
-        online: false
-      })
     }
   }
 
@@ -130,6 +260,20 @@ export const useConversationsStore = defineStore('conversations', () => {
     }
   }
 
+  function updateConversationLastMessage(msg: Message) {
+    const identityStore = useIdentityStore()
+    if (!identityStore.identity) return
+
+    const peerId = msg.sender === identityStore.identity.peer_id ? msg.recipient : msg.sender
+    const conv = conversations.value.find(c => c.peer_id === peerId)
+
+    if (conv) {
+      if (!conv.last_message || msg.timestamp > conv.last_message.timestamp) {
+        conv.last_message = msg
+      }
+    }
+  }
+
   return {
     conversations,
     messages,
@@ -138,11 +282,15 @@ export const useConversationsStore = defineStore('conversations', () => {
     error,
     sortedConversations,
     activeMessages,
+    isLoadingOlderMessages,
+    hasMoreOlderMessages,
     fetchConversations,
     fetchMessages,
+    loadOlderMessages,
     sendMessage,
-    addMessage,
+    insertMessage,
     setActiveConversation,
-    updatePeerOnlineStatus
+    updatePeerOnlineStatus,
+    updateConversationLastMessage,
   }
 })

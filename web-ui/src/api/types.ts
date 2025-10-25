@@ -32,7 +32,9 @@ export type WebSocketMessage =
       id: string
       sender: string
       recipient: string
+      content: string
       timestamp: number
+      nonce: number
     }
   | {
       type: 'peer_connected'

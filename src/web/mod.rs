@@ -29,15 +29,41 @@ pub async fn start_server(node: Arc<Node>, port: u16, mut ui_notify_rx: mpsc::Un
     });
 
     // Spawn task to forward UI notifications to broadcast channel
+    let node_clone = node.clone();
     tokio::spawn(async move {
         while let Some(notification) = ui_notify_rx.recv().await {
             match notification {
                 UiNotification::NewMessage(msg) => {
+                    // Decrypt message content before broadcasting
+                    let other_peer = if msg.sender == node_clone.identity.peer_id {
+                        &msg.recipient
+                    } else {
+                        &msg.sender
+                    };
+
+                    let content = match node_clone.friends.get_friend(other_peer).await {
+                        Ok(Some(friend)) => {
+                            match node_clone
+                                .identity
+                                .decrypt_from(&friend.e2e_public_key, &msg.content)
+                            {
+                                Ok(plaintext) => match String::from_utf8(plaintext) {
+                                    Ok(s) => s,
+                                    Err(_) => continue, // Skip non-UTF8 messages
+                                },
+                                Err(_) => continue, // Skip decryption failures
+                            }
+                        }
+                        _ => continue, // Skip if friend not found
+                    };
+
                     let ws_msg = WebSocketMessage::NewMessage {
                         id: msg.id.to_string(),
                         sender: msg.sender.to_string(),
                         recipient: msg.recipient.to_string(),
+                        content,
                         timestamp: msg.timestamp,
+                        nonce: msg.nonce,
                     };
                     let _ = broadcast_tx.send(ws_msg);
                 }

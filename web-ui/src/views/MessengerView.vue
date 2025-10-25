@@ -41,10 +41,18 @@ async function handleFriendAdded() {
 
 function handleWebSocketMessage(msg: WebSocketMessage) {
   if (msg.type === 'new_message') {
-    // Fetch the full message content from the API
-    const peerId = msg.sender === identityStore.identity?.peer_id ? msg.recipient : msg.sender
-    conversationsStore.fetchMessages(peerId)
-    conversationsStore.fetchConversations()
+    // Insert the message directly - WebSocket now includes full content
+    const fullMessage = {
+      id: msg.id,
+      sender: msg.sender,
+      recipient: msg.recipient,
+      content: msg.content,
+      timestamp: msg.timestamp,
+      nonce: msg.nonce,
+    }
+
+    conversationsStore.insertMessage(fullMessage)
+    conversationsStore.updateConversationLastMessage(fullMessage)
   } else if (msg.type === 'peer_connected') {
     friendsStore.updatePeerOnlineStatus(msg.peer_id, true)
     conversationsStore.updatePeerOnlineStatus(msg.peer_id, true)

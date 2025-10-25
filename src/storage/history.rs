@@ -15,6 +15,21 @@ pub trait MessageStore {
         limit: usize,
     ) -> Result<Vec<Message>>;
     async fn get_recent_messages(&self, own_id: &PeerId, limit: usize) -> Result<Vec<Message>>;
+    async fn get_messages_before(
+        &self,
+        own_id: &PeerId,
+        peer: &PeerId,
+        before_id: &uuid::Uuid,
+        limit: usize,
+    ) -> Result<Vec<Message>>;
+    async fn get_messages_after(
+        &self,
+        own_id: &PeerId,
+        peer: &PeerId,
+        after_id: &uuid::Uuid,
+        limit: usize,
+    ) -> Result<Vec<Message>>;
+    async fn count_messages(&self, own_id: &PeerId, peer: &PeerId) -> Result<usize>;
 }
 
 pub struct MessageHistory {
@@ -133,5 +148,116 @@ impl MessageStore for MessageHistory {
         }
 
         Ok(messages)
+    }
+
+    async fn get_messages_before(
+        &self,
+        own_id: &PeerId,
+        peer: &PeerId,
+        before_id: &uuid::Uuid,
+        limit: usize,
+    ) -> Result<Vec<Message>> {
+        let conversation_id = Self::get_conversation_id(own_id, peer);
+
+        // First, find the message with before_id to get its timestamp
+        let mut before_timestamp = None;
+        let mut before_nonce = None;
+
+        for result in self.tree.scan_prefix(&conversation_id) {
+            let (_key, value) = result?;
+            let msg = self.deserialize_message(&value)?;
+            if msg.id == *before_id {
+                before_timestamp = Some(msg.timestamp);
+                before_nonce = Some(msg.nonce);
+                break;
+            }
+        }
+
+        let (before_ts, before_n) = match (before_timestamp, before_nonce) {
+            (Some(ts), Some(n)) => (ts, n),
+            _ => return Ok(Vec::new()), // Message not found
+        };
+
+        // Collect all messages before this timestamp+nonce
+        let mut messages = Vec::new();
+        for result in self.tree.scan_prefix(&conversation_id) {
+            let (_key, value) = result?;
+            let msg = self.deserialize_message(&value)?;
+
+            // Include messages that are strictly before (timestamp, nonce)
+            if msg.timestamp < before_ts || (msg.timestamp == before_ts && msg.nonce < before_n) {
+                messages.push(msg);
+            }
+        }
+
+        // Sort by timestamp and nonce, take last N (most recent before the target)
+        messages.sort_by_key(|msg| (msg.timestamp, msg.nonce));
+        if messages.len() > limit {
+            let start_idx = messages.len() - limit;
+            messages.drain(0..start_idx);
+        }
+
+        Ok(messages)
+    }
+
+    async fn get_messages_after(
+        &self,
+        own_id: &PeerId,
+        peer: &PeerId,
+        after_id: &uuid::Uuid,
+        limit: usize,
+    ) -> Result<Vec<Message>> {
+        let conversation_id = Self::get_conversation_id(own_id, peer);
+
+        // First, find the message with after_id to get its timestamp
+        let mut after_timestamp = None;
+        let mut after_nonce = None;
+
+        for result in self.tree.scan_prefix(&conversation_id) {
+            let (_key, value) = result?;
+            let msg = self.deserialize_message(&value)?;
+            if msg.id == *after_id {
+                after_timestamp = Some(msg.timestamp);
+                after_nonce = Some(msg.nonce);
+                break;
+            }
+        }
+
+        let (after_ts, after_n) = match (after_timestamp, after_nonce) {
+            (Some(ts), Some(n)) => (ts, n),
+            _ => return Ok(Vec::new()), // Message not found
+        };
+
+        // Collect messages after this timestamp+nonce
+        let mut messages = Vec::new();
+        for result in self.tree.scan_prefix(&conversation_id) {
+            let (_key, value) = result?;
+            let msg = self.deserialize_message(&value)?;
+
+            // Include messages that are strictly after (timestamp, nonce)
+            if msg.timestamp > after_ts || (msg.timestamp == after_ts && msg.nonce > after_n) {
+                messages.push(msg);
+                if messages.len() >= limit {
+                    break;
+                }
+            }
+        }
+
+        // Sort by timestamp and nonce
+        messages.sort_by_key(|msg| (msg.timestamp, msg.nonce));
+
+        Ok(messages)
+    }
+
+    async fn count_messages(&self, own_id: &PeerId, peer: &PeerId) -> Result<usize> {
+        let conversation_id = Self::get_conversation_id(own_id, peer);
+        let mut count = 0;
+
+        for result in self.tree.scan_prefix(&conversation_id) {
+            result?;
+            count += 1;
+        }
+
+        Ok(count)
     }
 }
