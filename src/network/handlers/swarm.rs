@@ -1,3 +1,4 @@
+//! This module contains the handler for `SwarmEvent`s.
 use super::super::{NetworkLayer, P2PBehaviourEvent};
 use crate::sync::SyncEvent;
 use crate::types::Message;
@@ -7,6 +8,19 @@ use tokio::sync::mpsc;
 use tracing::{info, trace, warn};
 
 impl NetworkLayer {
+    /// Handles a `SwarmEvent`.
+    ///
+    /// This function is the main entry point for handling events from the `libp2p` `Swarm`.
+    /// It dispatches the event to the appropriate handler based on its type.
+    ///
+    /// # Arguments
+    ///
+    /// * `event` - The `SwarmEvent<P2PBehaviourEvent>` to handle.
+    /// * `incoming_messages` - The sender for incoming chat messages.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if handling the event fails.
     pub(crate) async fn handle_swarm_event(
         &mut self,
         event: SwarmEvent<P2PBehaviourEvent>,

@@ -1,3 +1,4 @@
+//! This module implements the `MailboxStore` trait for `SledMailboxStore`.
 use super::{MailboxStore, SledMailboxStore};
 use crate::types::EncryptedMessage;
 use anyhow::Result;
@@ -9,6 +10,20 @@ use uuid::Uuid;
 
 #[async_trait]
 impl MailboxStore for SledMailboxStore {
+    /// Stores an encrypted message for a recipient in the mailbox.
+    ///
+    /// This function also enforces storage limits by removing the oldest messages
+    /// if the maximum storage per user is exceeded.
+    ///
+    /// # Arguments
+    ///
+    /// * `recipient_hash` - The hash of the recipient's public key.
+    /// * `msg` - The `EncryptedMessage` to store.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the message cannot be stored or if
+    /// there are issues with the underlying `sled` database.
     async fn store_message(&self, recipient_hash: [u8; 32], msg: EncryptedMessage) -> Result<()> {
         let key = self.make_message_key(&recipient_hash, &msg.id);
         let value = self.serialize_message(&msg)?;
@@ -54,6 +69,24 @@ impl MailboxStore for SledMailboxStore {
         Ok(())
     }
 
+    /// Fetches a limited number of messages for a recipient from the mailbox.
+    ///
+    /// The messages are sorted by timestamp and nonce for deterministic ordering.
+    /// Corrupt messages encountered during fetching are logged and removed.
+    ///
+    /// # Arguments
+    ///
+    /// * `recipient_hash` - The hash of the recipient's public key.
+    /// * `limit` - The maximum number of messages to fetch.
+    ///
+    /// # Returns
+    ///
+    /// A `Vec` of `EncryptedMessage`s.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if there are issues with the underlying
+    /// `sled` database.
     async fn fetch_messages(
         &self,
         recipient_hash: [u8; 32],
@@ -89,11 +122,26 @@ impl MailboxStore for SledMailboxStore {
             }
         }
 
-        // Sort by timestamp/nonce for deterministic ordering
+        // Sort by timestamp/nonce for deterministic ordering.
         messages.sort_by_key(|msg| (msg.timestamp, msg.nonce));
         Ok(messages)
     }
 
+    /// Deletes specific messages for a recipient from the mailbox.
+    ///
+    /// # Arguments
+    ///
+    /// * `recipient_hash` - The hash of the recipient's public key.
+    /// * `msg_ids` - A `Vec` of message IDs to delete.
+    ///
+    /// # Returns
+    ///
+    /// The number of messages successfully deleted.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if there are issues with the underlying
+    /// `sled` database.
     async fn delete_messages(&self, recipient_hash: [u8; 32], msg_ids: Vec<Uuid>) -> Result<usize> {
         let mut deleted = 0;
 
@@ -108,6 +156,19 @@ impl MailboxStore for SledMailboxStore {
         Ok(deleted)
     }
 
+    /// Cleans up messages older than `max_age` from the mailbox.
+    ///
+    /// Corrupt messages encountered during cleanup are logged and removed.
+    ///
+    /// # Arguments
+    ///
+    /// * `max_age` - The maximum age for messages to be retained. Messages older
+    ///               than this duration will be deleted.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if there are issues with the underlying
+    /// `sled` database.
     async fn cleanup_expired(&self, max_age: Duration) -> Result<()> {
         let cutoff = Utc::now().timestamp_millis() - max_age.as_millis() as i64;
         let mut keys_to_remove = Vec::new();

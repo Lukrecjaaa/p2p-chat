@@ -1,3 +1,4 @@
+//! This module handles UI events for the `TerminalUI`.
 use anyhow::Result;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -6,6 +7,18 @@ use crate::ui::{UIAction, UIEvent, UIMode};
 use super::TerminalUI;
 
 impl TerminalUI {
+    /// Handles an incoming `UIEvent`, updating the UI state accordingly.
+    ///
+    /// This function processes various types of events such as new messages,
+    /// log batches, key presses, and terminal resizes.
+    ///
+    /// # Arguments
+    ///
+    /// * `event` - The `UIEvent` to handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if handling a key event fails.
     pub(super) async fn handle_event(&mut self, event: UIEvent) -> Result<()> {
         match event {
             UIEvent::NewMessage(msg) => {
@@ -39,6 +52,19 @@ impl TerminalUI {
         Ok(())
     }
 
+    /// Handles a keyboard `KeyEvent`.
+    ///
+    /// This function processes key presses, handling special key combinations
+    /// for mode switching or exiting the application, and then delegates
+    /// regular key presses to the current UI mode's handler.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The `KeyEvent` to handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the current UI mode's key handler fails.
     async fn handle_key_event(&mut self, key: KeyEvent) -> Result<()> {
         match (key.code, key.modifiers) {
             (KeyCode::F(9), _) => {

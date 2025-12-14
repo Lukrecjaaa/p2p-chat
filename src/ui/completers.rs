@@ -1,11 +1,20 @@
+//! This module provides an autocompletion mechanism for the UI input.
 #[derive(Clone)]
 pub struct ChatCompleter {
+    /// A list of available commands.
     commands: Vec<String>,
+    /// A list of known friends (e.g., nicknames or PeerIds).
     friends: Vec<String>,
+    /// A list of recently discovered peers.
     discovered_peers: Vec<String>,
 }
 
 impl ChatCompleter {
+    /// Creates a new `ChatCompleter` instance.
+    ///
+    /// # Arguments
+    ///
+    /// * `friends` - An initial list of friends to use for autocompletion.
     pub fn new(friends: Vec<String>) -> Self {
         let commands = vec![
             "send".to_string(),
@@ -26,14 +35,28 @@ impl ChatCompleter {
         }
     }
 
+    /// Updates the list of friends used for autocompletion.
     pub fn update_friends(&mut self, friends: Vec<String>) {
         self.friends = friends;
     }
 
+    /// Updates the list of discovered peers used for autocompletion.
     pub fn update_discovered_peers(&mut self, peers: Vec<String>) {
         self.discovered_peers = peers;
     }
 
+    /// Generates a list of suggestions based on the current input.
+    ///
+    /// This function provides completions for commands and their arguments,
+    /// including friend nicknames/IDs and peer IDs.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - The current input string from the user.
+    ///
+    /// # Returns
+    ///
+    /// A `Vec` of suggested completion strings.
     pub fn get_suggestions(&self, input: &str) -> Vec<String> {
         let trimmed = input.trim();
         if trimmed.is_empty() {
@@ -142,6 +165,19 @@ impl ChatCompleter {
         }
     }
 
+    /// Performs a fuzzy match between a pattern and a text.
+    ///
+    /// This checks if all characters in the `pattern` appear in the `text`
+    /// in the same order, but not necessarily contiguously.
+    ///
+    /// # Arguments
+    ///
+    /// * `pattern` - The pattern string to match.
+    /// * `text` - The text string to search within.
+    ///
+    /// # Returns
+    ///
+    /// `true` if a fuzzy match is found, `false` otherwise.
     fn fuzzy_match(&self, pattern: &str, text: &str) -> bool {
         if pattern.len() > text.len() {
             return false;

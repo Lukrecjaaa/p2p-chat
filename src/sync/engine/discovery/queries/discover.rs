@@ -1,3 +1,4 @@
+//! This module contains logic for discovering mailbox providers in the DHT.
 use crate::crypto::StorageEncryption;
 use crate::mailbox::{make_mailbox_provider_key, make_recipient_mailbox_key};
 use crate::sync::engine::{DhtQueryState, SyncEngine};
@@ -6,11 +7,23 @@ use std::time::{Duration, Instant};
 use tracing::{debug, error, info, trace};
 
 impl SyncEngine {
+    /// Discovers mailbox providers.
+    ///
+    /// This function attempts to discover new mailbox providers in the DHT.
+    /// It is a wrapper around `discover_mailboxes_if_needed` with `force` set to `false`.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the discovery process fails.
     pub async fn discover_mailboxes(&mut self) -> Result<()> {
         self.discover_mailboxes_if_needed(false).await
     }
 
-    /// Load cached mailboxes from database into discovered_mailboxes
+    /// Loads cached mailboxes from the database into `discovered_mailboxes`.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if loading the cached mailboxes fails.
     async fn load_cached_mailboxes(&mut self) -> Result<()> {
         let cached = self.known_mailboxes.list_mailboxes().await?;
 
@@ -29,8 +42,22 @@ impl SyncEngine {
         Ok(())
     }
 
+    /// Discovers mailbox providers in the DHT if needed.
+    ///
+    /// This function checks if there are enough available mailboxes or if a recent
+    /// discovery has already been performed (rate-limiting). It can be forced
+    /// to run a discovery regardless of these conditions.
+    ///
+    /// # Arguments
+    ///
+    /// * `force` - If `true`, a discovery will be performed even if conditions
+    ///             for skipping are met.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the discovery process fails.
     pub async fn discover_mailboxes_if_needed(&mut self, force: bool) -> Result<()> {
-        // On first call (when discovered_mailboxes is empty), load cached mailboxes
+        // On first call (when discovered_mailboxes is empty), load cached mailboxes.
         if self.discovered_mailboxes.is_empty() {
             if let Err(e) = self.load_cached_mailboxes().await {
                 error!("Failed to load cached mailboxes: {}", e);
@@ -74,6 +101,7 @@ impl SyncEngine {
 
         self.last_discovery_time = Some(Instant::now());
 
+        // Start a DHT query for general mailbox providers.
         let general_mailbox_key = make_mailbox_provider_key();
         if !self.has_pending_query_for(&general_mailbox_key) {
             match network
@@ -100,6 +128,7 @@ impl SyncEngine {
             trace!("Skipping DHT query for general mailbox providers; query already pending");
         }
 
+        // Start a DHT query for recipient-specific mailbox providers (for our own hash).
         let our_recipient_hash =
             StorageEncryption::derive_recipient_hash(&self.identity.hpke_public_key());
         let recipient_mailbox_key = make_recipient_mailbox_key(our_recipient_hash);

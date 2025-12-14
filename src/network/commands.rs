@@ -1,3 +1,4 @@
+//! This module contains the handlers for `NetworkCommand`s.
 use super::{NetworkCommand, NetworkLayer, NetworkResponse};
 use crate::types::{ChatRequest, MailboxRequest};
 use anyhow::Result;
@@ -5,6 +6,18 @@ use libp2p::PeerId;
 use tracing::debug;
 
 impl NetworkLayer {
+    /// Handles an incoming `NetworkCommand`.
+    ///
+    /// This function processes commands sent to the `NetworkLayer` from other
+    /// parts of the application.
+    ///
+    /// # Arguments
+    ///
+    /// * `command` - The `NetworkCommand` to handle.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if handling the command fails.
     pub(super) async fn handle_command(&mut self, command: NetworkCommand) -> Result<()> {
         match command {
             NetworkCommand::SendMessage {

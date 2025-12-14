@@ -1,3 +1,4 @@
+//! This module contains command handlers related to managing friends.
 use anyhow::Result;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
@@ -8,6 +9,20 @@ use crate::types::Friend;
 
 use super::super::context::CommandContext;
 
+/// Adds a new friend to the application's friend list.
+///
+/// This command requires the friend's Peer ID, their E2E public key, and optionally a nickname.
+///
+/// Usage: `friend <peer_id> <e2e_key> [nickname]`
+///
+/// # Arguments
+///
+/// * `parts` - A slice of strings representing the command arguments.
+/// * `context` - The `CommandContext` providing access to the application's state and node.
+///
+/// # Errors
+///
+/// This function returns an error if adding the friend to storage fails.
 pub async fn add_friend(parts: &[&str], context: &CommandContext) -> Result<()> {
     if !(3..=4).contains(&parts.len()) {
         context.emit_chat("Usage: friend <peer_id> <e2e_key> [nickname]");
@@ -54,6 +69,17 @@ pub async fn add_friend(parts: &[&str], context: &CommandContext) -> Result<()> 
     Ok(())
 }
 
+/// Lists all friends currently stored in the application.
+///
+/// The output includes the friend's Peer ID and their nickname (if available).
+///
+/// # Arguments
+///
+/// * `context` - The `CommandContext` providing access to the application's state and node.
+///
+/// # Errors
+///
+/// This function returns an error if retrieving the friend list from storage fails.
 pub async fn list_friends(context: &CommandContext) -> Result<()> {
     match context.node().friends.list_friends().await {
         Ok(friends) => {

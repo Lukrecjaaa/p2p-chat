@@ -1,3 +1,5 @@
+//! This module contains logic for ranking mailbox providers based on their
+//! perceived performance and reliability.
 use std::cmp::Ordering;
 
 use libp2p::PeerId;
@@ -5,6 +7,18 @@ use libp2p::PeerId;
 use super::super::SyncEngine;
 
 impl SyncEngine {
+    /// Ranks a given set of candidate mailbox providers.
+    ///
+    /// Providers are filtered by whether they can be attempted (not backed off)
+    /// and then sorted by their calculated score in descending order.
+    ///
+    /// # Arguments
+    ///
+    /// * `candidates` - An iterator over `PeerId`s of potential mailbox providers.
+    ///
+    /// # Returns
+    ///
+    /// A `Vec` of `PeerId`s, ranked from best to worst.
     pub(super) fn rank_mailboxes<I>(&self, candidates: I) -> Vec<PeerId>
     where
         I: IntoIterator<Item = PeerId>,
@@ -23,6 +37,24 @@ impl SyncEngine {
         providers
     }
 
+    /// Calculates a performance score for a single mailbox provider.
+    ///
+    /// The score takes into account:
+    /// - Success rate (70% weight)
+    /// - Recency of last success (20% weight, with bonus for recent success)
+    /// - Average response time (10% weight, bonus for faster responses)
+    /// - Penalty for consecutive failures
+    /// - A significant penalty if the peer is currently in backoff.
+    ///
+    /// The score is clamped between 0.0 and 1.0.
+    ///
+    /// # Arguments
+    ///
+    /// * `peer_id` - The `PeerId` of the mailbox provider.
+    ///
+    /// # Returns
+    ///
+    /// A `f64` representing the performance score of the mailbox.
     fn calculate_mailbox_score(&self, peer_id: PeerId) -> f64 {
         let mut score = 0.5;
 

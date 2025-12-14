@@ -1,12 +1,19 @@
+//! This module defines the codec for the mailbox protocol, which is used for
+//! interacting with mailbox nodes.
 use crate::types::{MailboxRequest, MailboxResponse};
 use futures::prelude::*;
 use libp2p::request_response::{self, Codec, ProtocolSupport};
 use std::io;
 
+/// The codec for the mailbox protocol.
+///
+/// This codec is used by the `libp2p` `request_response` behaviour to encode
+/// and decode mailbox requests and responses.
 #[derive(Clone, Default)]
 pub struct MailboxCodec;
 
 impl MailboxCodec {
+    /// The protocol name for the mailbox protocol.
     pub const PROTOCOL: &'static str = "/mailbox/1.0.0";
 }
 
@@ -16,6 +23,7 @@ impl Codec for MailboxCodec {
     type Request = MailboxRequest;
     type Response = MailboxResponse;
 
+    /// Reads a length-prefixed JSON-encoded request from the given I/O stream.
     async fn read_request<T>(&mut self, _: &Self::Protocol, io: &mut T) -> io::Result<Self::Request>
     where
         T: AsyncRead + Unpin + Send,
@@ -30,6 +38,7 @@ impl Codec for MailboxCodec {
         serde_json::from_slice(&data).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
 
+    /// Reads a length-prefixed JSON-encoded response from the given I/O stream.
     async fn read_response<T>(
         &mut self,
         _: &Self::Protocol,
@@ -48,6 +57,7 @@ impl Codec for MailboxCodec {
         serde_json::from_slice(&data).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
 
+    /// Writes a length-prefixed JSON-encoded request to the given I/O stream.
     async fn write_request<T>(
         &mut self,
         _: &Self::Protocol,
@@ -67,6 +77,7 @@ impl Codec for MailboxCodec {
         Ok(())
     }
 
+    /// Writes a length-prefixed JSON-encoded response to the given I/O stream.
     async fn write_response<T>(
         &mut self,
         _: &Self::Protocol,
@@ -87,12 +98,14 @@ impl Codec for MailboxCodec {
     }
 }
 
+/// The `libp2p` `request_response` behaviour for the mailbox protocol.
 pub type MailboxBehaviour = request_response::Behaviour<MailboxCodec>;
 
+/// Creates a new `MailboxBehaviour`.
 pub fn create_mailbox_behaviour() -> MailboxBehaviour {
     use std::time::Duration;
 
-    let config = request_response::Config::default().with_request_timeout(Duration::from_secs(2)); // Much faster timeout
+    let config = request_response::Config::default().with_request_timeout(Duration::from_secs(2));
 
     request_response::Behaviour::new([(MailboxCodec::PROTOCOL, ProtocolSupport::Full)], config)
 }

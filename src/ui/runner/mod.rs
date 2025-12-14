@@ -1,3 +1,4 @@
+//! This module contains the main logic for running the terminal user interface (TUI).
 use super::{TerminalUI, UIAction, UIEvent};
 use crate::cli::commands::{Node, UiNotification};
 use crate::logging::{LogBuffer, TUILogCollector};
@@ -11,6 +12,21 @@ use tracing::{debug, error, info};
 mod actions;
 use actions::handle_ui_action;
 
+/// Initializes and runs the terminal user interface.
+///
+/// This function sets up the logging, UI communication channels,
+/// initializes the `TerminalUI`, and spawns various background tasks
+/// for handling events, actions, and network notifications.
+///
+/// # Arguments
+///
+/// * `node` - A shared reference to the application's core `Node`.
+/// * `ui_notify_rx` - Receiver for UI notifications from other parts of the application.
+/// * `web_port` - The port on which the web UI is running.
+///
+/// # Errors
+///
+/// Returns an error if the terminal UI fails to run.
 pub async fn run_tui(
     node: Arc<Node>,
     mut ui_notify_rx: tokio::sync::mpsc::UnboundedReceiver<UiNotification>,
@@ -18,28 +34,28 @@ pub async fn run_tui(
 ) -> Result<()> {
     info!("🚀 Starting P2P Messenger TUI");
 
-    // Initialize log buffer and collector
+    // Initialize log buffer and collector.
     let log_buffer = Arc::new(LogBuffer::new(10000));
 
-    // Set up TUI log collector - only when in log mode
+    // Set up TUI log collector.
     if let Err(e) = TUILogCollector::init_subscriber(log_buffer.clone()) {
         debug!("Failed to initialize TUI log collector: {}", e);
     }
 
-    // Create channels for UI communication
+    // Create channels for UI communication.
     let (ui_event_tx, ui_event_rx) = mpsc::unbounded_channel::<UIEvent>();
     let (ui_action_tx, mut ui_action_rx) = mpsc::unbounded_channel::<UIAction>();
 
-    // Connect log buffer to UI events
+    // Connect log buffer to UI events.
     log_buffer.set_ui_sender(ui_event_tx.clone());
 
-    // Send web UI notification to chat
+    // Send web UI notification to chat.
     let _ = ui_event_tx.send(UIEvent::ChatMessage(format!(
         "🌐 Web UI available at: http://127.0.0.1:{}",
         web_port
     )));
 
-    // Initialize terminal UI
+    // Initialize terminal UI.
     let mut terminal_ui = TerminalUI::new(ui_event_rx, ui_action_tx.clone());
     terminal_ui.set_node(node.clone());
     terminal_ui.set_log_buffer(log_buffer.clone());
@@ -53,7 +69,7 @@ pub async fn run_tui(
         terminal_ui.preload_messages(initial_messages);
     }
 
-    // Load friends for autocompletion
+    // Load friends for autocompletion.
     let friends = match node.friends.list_friends().await {
         Ok(friends_list) => friends_list
             .into_iter()
@@ -67,7 +83,7 @@ pub async fn run_tui(
 
     terminal_ui.update_friends(friends);
 
-    // Spawn terminal event handler
+    // Spawn terminal event handler.
     let ui_event_tx_clone = ui_event_tx.clone();
     tokio::spawn(async move {
         loop {
@@ -91,7 +107,7 @@ pub async fn run_tui(
         }
     });
 
-    // Spawn UI action handler
+    // Spawn UI action handler.
     let node_clone = node.clone();
     let ui_event_tx_actions = ui_event_tx.clone();
     tokio::spawn(async move {
@@ -103,7 +119,7 @@ pub async fn run_tui(
         }
     });
 
-    // Spawn UI notification handler (for incoming messages and peer events)
+    // Spawn UI notification handler (for incoming messages and peer events).
     let ui_event_tx_notifications = ui_event_tx.clone();
     let node_for_notifications = node.clone();
     tokio::spawn(async move {
@@ -116,7 +132,7 @@ pub async fn run_tui(
                     }
                 }
                 UiNotification::PeerConnected(_) | UiNotification::PeerDisconnected(_) => {
-                    // Update peers count immediately
+                    // Update peers count immediately.
                     if let Ok(peers) = node_for_notifications.network.get_connected_peers().await {
                         let _ = ui_event_tx_notifications.send(UIEvent::UpdatePeersCount(peers.len()));
                         let peer_strings: Vec<String> =
@@ -126,13 +142,13 @@ pub async fn run_tui(
                     }
                 }
                 UiNotification::DeliveryStatusUpdate { .. } => {
-                    // Web UI only notification, CLI doesn't need this
+                    // Web UI only notification, CLI doesn't need this.
                 }
             }
         }
     });
 
-    // Spawn periodic peers updater (for autocomplete)
+    // Spawn periodic peers updater (for autocomplete).
     let ui_event_tx_peers = ui_event_tx.clone();
     let node_peers = node.clone();
     tokio::spawn(async move {
@@ -146,13 +162,13 @@ pub async fn run_tui(
                     let _ = ui_event_tx_peers.send(UIEvent::UpdateDiscoveredPeers(peer_strings));
                 }
                 Err(_) => {
-                    // Ignore errors, will try again next interval
+                    // Ignore errors, will try again next interval.
                 }
             }
         }
     });
 
-    // Load initial friends for autocompletion
+    // Load initial friends for autocompletion.
     let friends = match node.friends.list_friends().await {
         Ok(friends_list) => friends_list
             .into_iter()
@@ -169,7 +185,7 @@ pub async fn run_tui(
         friends.len()
     );
 
-    // Update initial peers count and discovered peers
+    // Update initial peers count and discovered peers.
     match node.network.get_connected_peers().await {
         Ok(peers) => {
             let _ = ui_event_tx.send(UIEvent::UpdatePeersCount(peers.len()));
@@ -177,10 +193,10 @@ pub async fn run_tui(
             let _ = ui_event_tx.send(UIEvent::UpdateDiscoveredPeers(peer_strings));
         }
         Err(_) => {
-            // If we can't get peers count, default to 0 which is already set
+            // If we can't get peers count, default to 0 which is already set.
         }
     }
 
-    // Run the terminal UI
+    // Run the terminal UI.
     terminal_ui.run().await
 }

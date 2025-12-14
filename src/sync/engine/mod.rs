@@ -1,3 +1,8 @@
+//! This module contains the core synchronization engine of the application.
+//!
+//! The `SyncEngine` is responsible for discovering mailbox providers, fetching
+//! and processing messages from mailboxes, retrying failed message deliveries,
+//! and maintaining the reliability of mailbox interactions.
 use crate::cli::UiNotification;
 use crate::crypto::Identity;
 use crate::network::NetworkHandle;
@@ -20,34 +25,60 @@ mod performance;
 pub use events::{DhtQueryResult, SyncEvent};
 use performance::MailboxPerformance;
 
+/// The core synchronization engine.
+///
+/// This struct manages the discovery of mailbox providers, fetching and processing
+/// messages, and retrying message deliveries.
 pub struct SyncEngine {
+    /// The interval at which the synchronization cycle runs.
     pub interval: Duration,
+    /// A set of discovered mailbox `PeerId`s.
     pub discovered_mailboxes: HashSet<PeerId>,
+    /// Performance metrics for each discovered mailbox.
     pub mailbox_performance: HashMap<PeerId, MailboxPerformance>,
+    /// Manages backoff for failing peers.
     pub backoff_manager: BackoffManager,
+    /// Stores the state of pending DHT queries.
     pub pending_dht_queries: HashMap<kad::QueryId, DhtQueryState>,
+    /// The `Instant` of the last mailbox discovery.
     pub last_discovery_time: Option<Instant>,
+    /// The local node's identity.
     pub identity: Arc<Identity>,
+    /// The store for managing friends.
     pub friends: Arc<dyn FriendsStore + Send + Sync>,
+    /// The store for managing outgoing messages.
     pub outbox: Arc<dyn OutboxStore + Send + Sync>,
+    /// The store for managing message history.
     pub history: Arc<dyn MessageStore + Send + Sync>,
+    /// The tracker for seen messages.
     pub seen: Arc<dyn SeenTracker + Send + Sync>,
+    /// The store for known mailbox providers.
     pub known_mailboxes: Arc<dyn KnownMailboxesStore + Send + Sync>,
+    /// The network handle for communicating with the `NetworkLayer`.
     pub network: Option<NetworkHandle>,
+    /// Sender for UI notifications.
     pub ui_notify_tx: mpsc::UnboundedSender<UiNotification>,
+    /// Sender for web UI notifications.
     pub web_notify_tx: Option<mpsc::UnboundedSender<UiNotification>>,
 }
 
+/// A collection of storage traits used by the `SyncEngine`.
 #[derive(Clone)]
 pub struct SyncStores {
+    /// The friends store.
     pub friends: Arc<dyn FriendsStore + Send + Sync>,
+    /// The outbox store.
     pub outbox: Arc<dyn OutboxStore + Send + Sync>,
+    /// The message history store.
     pub history: Arc<dyn MessageStore + Send + Sync>,
+    /// The seen messages tracker.
     pub seen: Arc<dyn SeenTracker + Send + Sync>,
+    /// The known mailboxes store.
     pub known_mailboxes: Arc<dyn KnownMailboxesStore + Send + Sync>,
 }
 
 impl SyncStores {
+    /// Creates a new `SyncStores` instance.
     pub fn new(
         friends: Arc<dyn FriendsStore + Send + Sync>,
         outbox: Arc<dyn OutboxStore + Send + Sync>,
@@ -65,14 +96,33 @@ impl SyncStores {
     }
 }
 
+/// Represents the state of a pending Kademlia DHT query.
 #[derive(Debug, Clone)]
 pub struct DhtQueryState {
+    /// The key being queried.
     pub key: kad::RecordKey,
+    /// The `Instant` when the query was started.
     pub started_at: Instant,
+    /// Whether any results have been received for this query.
     pub received_results: bool,
 }
 
 impl SyncEngine {
+    /// Creates a new `SyncEngine` with a network handle.
+    ///
+    /// # Arguments
+    ///
+    /// * `interval` - The interval for the synchronization cycle.
+    /// * `identity` - The local node's identity.
+    /// * `stores` - A collection of storage implementations.
+    /// * `network` - The network handle.
+    /// * `ui_notify_tx` - Sender for UI notifications.
+    /// * `web_notify_tx` - Sender for web UI notifications.
+    ///
+    /// # Returns
+    ///
+    /// A `Result` containing a tuple of the `SyncEngine` instance, an event sender,
+    /// and an event receiver.
     pub fn new_with_network(
         interval: Duration,
         identity: Arc<Identity>,
@@ -117,6 +167,11 @@ impl SyncEngine {
         Ok((engine, event_tx, event_rx))
     }
 
+    /// Performs an initial discovery of mailbox providers on startup.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the discovery process fails.
     pub async fn initial_discovery(&mut self) -> Result<()> {
         debug!("Performing initial mailbox discovery on startup");
 
@@ -127,6 +182,14 @@ impl SyncEngine {
         Ok(())
     }
 
+    /// Runs a single synchronization cycle.
+    ///
+    /// This includes discovering mailboxes, fetching messages, retrying outbox
+    /// messages, and cleaning up old data.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any part of the synchronization cycle fails.
     pub async fn sync_cycle(&mut self) -> Result<()> {
         trace!("Starting sync cycle");
 
@@ -157,6 +220,18 @@ impl SyncEngine {
         Ok(())
     }
 
+    /// Handles an incoming `SyncEvent`.
+    ///
+    /// This function processes various events related to peer connections and
+    /// DHT query results, triggering appropriate synchronization actions.
+    ///
+    /// # Arguments
+    ///
+    /// * `event` - The `SyncEvent` to handle.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if handling the event fails.
     pub async fn handle_event(&mut self, event: SyncEvent) -> Result<()> {
         match event {
             SyncEvent::PeerConnected(peer_id) => {

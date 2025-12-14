@@ -1,9 +1,15 @@
+//! This module contains maintenance-related query logic for the synchronization engine's
+//! discovery process.
 use crate::sync::engine::SyncEngine;
 use libp2p::kad;
 use std::time::Duration;
 use tracing::trace;
 
 impl SyncEngine {
+    /// Cleans up stale DHT queries from the pending list.
+    ///
+    /// Queries older than a defined `stale_timeout` are removed. This also triggers
+    /// a cleanup of old entries in the backoff manager.
     pub(crate) fn cleanup_stale_dht_queries(&mut self) {
         let stale_timeout = Duration::from_secs(10);
         let mut stale_queries = Vec::new();
@@ -29,6 +35,15 @@ impl SyncEngine {
             .cleanup_old_entries(Duration::from_secs(3600));
     }
 
+    /// Checks if there is a pending DHT query for a specific key.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The `kad::RecordKey` to check for.
+    ///
+    /// # Returns
+    ///
+    /// `true` if a pending query exists for the key, `false` otherwise.
     pub(crate) fn has_pending_query_for(&self, key: &kad::RecordKey) -> bool {
         self.pending_dht_queries
             .values()

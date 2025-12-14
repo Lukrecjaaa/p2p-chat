@@ -1,3 +1,7 @@
+//! This module contains the user interface (UI) logic for the application.
+//!
+//! It includes definitions for UI actions, different UI modes (chat and log),
+//! rendering logic, state management, and terminal interaction.
 pub mod action;
 pub mod chat_mode;
 pub mod completers;

@@ -1,7 +1,14 @@
+//! This module contains logic for navigating command history in log mode.
 use crate::ui::log_mode::LogMode;
 use crate::ui::UIState;
 
 impl LogMode {
+    /// Navigates through the input history in log mode.
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - The current UI state, which holds the input buffer.
+    /// * `up` - If `true`, navigates to an older history entry; if `false`, navigates to a newer entry.
     pub(crate) fn navigate_history(&mut self, state: &mut UIState, up: bool) {
         if self.input_history.is_empty() {
             return;

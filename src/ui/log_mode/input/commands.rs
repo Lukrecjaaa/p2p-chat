@@ -1,9 +1,24 @@
+//! This module contains the command execution logic for the log UI mode.
 use crate::ui::log_mode::{LogMode, UIMode};
 use crate::ui::UIState;
 use anyhow::Result;
 use tracing::{debug, Level};
 
 impl LogMode {
+    /// Executes a command entered by the user in log mode.
+    ///
+    /// This function parses the input string and dispatches various log-related
+    /// commands, such as setting the log level, filtering logs, clearing the buffer,
+    /// or displaying a tail of the logs.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - The command string entered by the user.
+    /// * `state` - The current UI state, which will be modified based on the command.
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error if command execution fails due to unexpected issues.
     pub(crate) async fn execute_log_command(&self, input: &str, state: &mut UIState) -> Result<()> {
         let parts: Vec<&str> = input.split_whitespace().collect();
         if parts.is_empty() {

@@ -1,3 +1,4 @@
+//! This module contains the command handler for sending messages.
 use std::collections::HashSet;
 
 use anyhow::Result;
@@ -13,6 +14,21 @@ use crate::types::{DeliveryStatus, Friend, Message};
 use super::super::context::CommandContext;
 use super::super::resolver::resolve_peer_id;
 
+/// Handles the 'send' command, encrypting and sending a message to a friend.
+///
+/// This function attempts direct delivery first. If direct delivery fails,
+/// it then attempts to store the message in available mailboxes.
+///
+/// Usage: `send <peer_id_or_nickname> <message...>`
+///
+/// # Arguments
+///
+/// * `parts` - A slice of strings representing the command arguments.
+/// * `context` - The `CommandContext` providing access to the application's state and network.
+///
+/// # Errors
+///
+/// This function returns an error if friend lookup, encryption, or message storage fails.
 pub async fn handle_send(parts: &[&str], context: &CommandContext) -> Result<()> {
     if parts.len() < 3 {
         context.emit_chat("Usage: send <peer_id_or_nickname> <message...>");
@@ -65,6 +81,7 @@ pub async fn handle_send(parts: &[&str], context: &CommandContext) -> Result<()>
         delivery_status: DeliveryStatus::Sending,
     };
 
+    // Store message in history and outbox immediately
     context
         .node()
         .history
@@ -72,13 +89,33 @@ pub async fn handle_send(parts: &[&str], context: &CommandContext) -> Result<()>
         .await?;
     context.node().outbox.add_pending(message.clone()).await?;
 
+    // Attempt direct delivery first
     if attempt_direct_delivery(destination, &message, context).await? {
         return Ok(());
     }
 
+    // If direct delivery fails, attempt mailbox delivery
     attempt_mailbox_delivery(destination, &message, &friend, context).await
 }
 
+/// Attempts to directly deliver a message to the recipient.
+///
+/// If the recipient is online and connected, the message is sent directly and
+/// removed from the outbox. Otherwise, it logs a message and returns `false`.
+///
+/// # Arguments
+///
+/// * `destination` - The display name or PeerId of the recipient.
+/// * `message` - The message to send.
+/// * `context` - The `CommandContext` for network interaction and chat output.
+///
+/// # Returns
+///
+/// `true` if direct delivery was successful, `false` otherwise.
+///
+/// # Errors
+///
+/// This function returns an error if removing the message from the outbox fails.
 async fn attempt_direct_delivery(
     destination: &str,
     message: &Message,
@@ -105,6 +142,21 @@ async fn attempt_direct_delivery(
     }
 }
 
+/// Attempts to deliver a message via mailbox providers.
+///
+/// If direct delivery fails, this function tries to find and use mailbox
+/// providers to store the message for the recipient.
+///
+/// # Arguments
+///
+/// * `destination` - The display name or PeerId of the recipient.
+/// * `message` - The message to deliver.
+/// * `friend` - The `Friend` object of the recipient.
+/// * `context` - The `CommandContext` for network interaction and chat output.
+///
+/// # Errors
+///
+/// This function returns an error if network communication or mailbox interaction fails.
 async fn attempt_mailbox_delivery(
     destination: &str,
     message: &Message,
@@ -157,6 +209,19 @@ async fn attempt_mailbox_delivery(
     .await
 }
 
+/// Delivers a message to a set of mailbox providers.
+///
+/// # Arguments
+///
+/// * `destination` - The display name or PeerId of the recipient.
+/// * `message` - The message to deliver.
+/// * `friend` - The `Friend` object of the recipient.
+/// * `context` - The `CommandContext` for network interaction and chat output.
+/// * `providers` - An iterator over `PeerId`s of mailbox providers.
+///
+/// # Errors
+///
+/// This function returns an error if the underlying mailbox forwarding fails.
 async fn deliver_via_mailboxes<I>(
     destination: &str,
     message: &Message,

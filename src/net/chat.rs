@@ -1,12 +1,19 @@
+//! This module defines the codec for the chat protocol, which is used for
+//! sending and receiving chat messages over the network.
 use crate::types::{ChatRequest, ChatResponse};
 use futures::prelude::*;
 use libp2p::request_response::{self, Codec, ProtocolSupport};
 use std::io;
 
+/// The codec for the chat protocol.
+///
+/// This codec is used by the `libp2p` `request_response` behaviour to encode
+/// and decode chat messages.
 #[derive(Clone, Default)]
 pub struct ChatCodec;
 
 impl ChatCodec {
+    /// The protocol name for the chat protocol.
     pub const PROTOCOL: &'static str = "/chat/1.0.0";
 }
 
@@ -16,6 +23,7 @@ impl Codec for ChatCodec {
     type Request = ChatRequest;
     type Response = ChatResponse;
 
+    /// Reads a length-prefixed JSON-encoded request from the given I/O stream.
     async fn read_request<T>(&mut self, _: &Self::Protocol, io: &mut T) -> io::Result<Self::Request>
     where
         T: AsyncRead + Unpin + Send,
@@ -30,6 +38,7 @@ impl Codec for ChatCodec {
         serde_json::from_slice(&data).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
 
+    /// Reads a length-prefixed JSON-encoded response from the given I/O stream.
     async fn read_response<T>(
         &mut self,
         _: &Self::Protocol,
@@ -48,6 +57,7 @@ impl Codec for ChatCodec {
         serde_json::from_slice(&data).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
 
+    /// Writes a length-prefixed JSON-encoded request to the given I/O stream.
     async fn write_request<T>(
         &mut self,
         _: &Self::Protocol,
@@ -67,6 +77,7 @@ impl Codec for ChatCodec {
         Ok(())
     }
 
+    /// Writes a length-prefixed JSON-encoded response to the given I/O stream.
     async fn write_response<T>(
         &mut self,
         _: &Self::Protocol,
@@ -87,8 +98,10 @@ impl Codec for ChatCodec {
     }
 }
 
+/// The `libp2p` `request_response` behaviour for the chat protocol.
 pub type ChatBehaviour = request_response::Behaviour<ChatCodec>;
 
+/// Creates a new `ChatBehaviour`.
 pub fn create_chat_behaviour() -> ChatBehaviour {
     use std::time::Duration;
 

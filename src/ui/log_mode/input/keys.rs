@@ -1,3 +1,4 @@
+//! This module contains key event handling logic for the log UI mode.
 use crate::ui::log_mode::LogMode;
 use crate::ui::{UIAction, UIState};
 use anyhow::Result;
@@ -6,6 +7,20 @@ use tokio::sync::mpsc;
 use tracing::debug;
 
 impl LogMode {
+    /// Handles a key event in log mode.
+    ///
+    /// This function processes various key presses, including typing characters,
+    /// navigating input history, moving the cursor, and scrolling through logs.
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - The current UI state.
+    /// * `key` - The `KeyEvent` to handle.
+    /// * `_action_tx` - The sender for dispatching UI actions (unused in log mode input).
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error if a command execution fails.
     pub async fn handle_key(
         &mut self,
         state: &mut UIState,

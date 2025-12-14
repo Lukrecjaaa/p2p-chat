@@ -1,3 +1,7 @@
+//! This module contains the web server implementation for the application.
+//!
+//! It sets up an Axum server to serve both static web UI assets and a REST API,
+//! including WebSocket communication.
 mod api;
 mod websocket;
 
@@ -16,25 +20,44 @@ use tower_http::cors::CorsLayer;
 use tracing::info;
 use websocket::{WebSocketMessage, WebSocketState};
 
+/// Embeds the web UI static assets into the binary.
 #[derive(RustEmbed)]
 #[folder = "web-ui/dist"]
 struct Assets;
 
-pub async fn start_server(node: Arc<Node>, port: u16, mut ui_notify_rx: mpsc::UnboundedReceiver<UiNotification>) -> Result<()> {
+/// Starts the web server.
+///
+/// This function initializes an Axum server, sets up API and WebSocket routes,
+/// serves static web UI assets, and forwards UI notifications to connected
+/// WebSocket clients.
+///
+/// # Arguments
+///
+/// * `node` - A shared reference to the application's core `Node`.
+/// * `port` - The port to bind the web server to.
+/// * `ui_notify_rx` - Receiver for UI notifications from the core application.
+///
+/// # Errors
+///
+/// Returns an error if the server fails to bind or run.
+pub async fn start_server(
+    node: Arc<Node>,
+    port: u16,
+    mut ui_notify_rx: mpsc::UnboundedReceiver<UiNotification>,
+) -> Result<()> {
     let (broadcast_tx, _) = broadcast::channel::<WebSocketMessage>(100);
 
     let ws_state = Arc::new(WebSocketState {
-        node: node.clone(),
         broadcast_tx: broadcast_tx.clone(),
     });
 
-    // Spawn task to forward UI notifications to broadcast channel
+    // Spawn task to forward UI notifications to broadcast channel.
     let node_clone = node.clone();
     tokio::spawn(async move {
         while let Some(notification) = ui_notify_rx.recv().await {
             match notification {
                 UiNotification::NewMessage(msg) => {
-                    // Decrypt message content before broadcasting
+                    // Decrypt message content before broadcasting.
                     let other_peer = if msg.sender == node_clone.identity.peer_id {
                         &msg.recipient
                     } else {
@@ -122,6 +145,19 @@ pub async fn start_server(node: Arc<Node>, port: u16, mut ui_notify_rx: mpsc::Un
     Ok(())
 }
 
+/// Handles requests for static web UI assets.
+///
+/// This function attempts to serve the requested file from the embedded assets.
+/// If the path is empty or "index.html", it serves "index.html".
+/// If a file is not found, it falls back to serving "index.html" for client-side routing.
+///
+/// # Arguments
+///
+/// * `uri` - The `Uri` of the incoming request.
+///
+/// # Returns
+///
+/// An Axum `Response` containing the static file or a 404 error.
 async fn static_handler(uri: Uri) -> Response {
     let path = uri.path().trim_start_matches('/');
 
@@ -129,7 +165,7 @@ async fn static_handler(uri: Uri) -> Response {
         return serve_file("index.html");
     }
 
-    // Try to serve the file, if not found serve index.html for client-side routing
+    // Try to serve the file, if not found serve index.html for client-side routing.
     if Assets::get(path).is_some() {
         serve_file(path)
     } else {
@@ -137,6 +173,15 @@ async fn static_handler(uri: Uri) -> Response {
     }
 }
 
+/// Serves a static file from the embedded assets.
+///
+/// # Arguments
+///
+/// * `path` - The path to the file within the embedded assets.
+///
+/// # Returns
+///
+/// An Axum `Response` containing the file content or a 404 error.
 fn serve_file(path: &str) -> Response {
     match Assets::get(path) {
         Some(content) => {

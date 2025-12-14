@@ -1,3 +1,4 @@
+//! This module contains the runtime logic for the `NetworkLayer`.
 use std::time::Duration;
 
 use anyhow::Result;
@@ -11,6 +12,7 @@ use crate::types::Message;
 use super::NetworkLayer;
 
 impl NetworkLayer {
+    /// Periodically cleans up the list of blocked peers.
     fn cleanup_blocked_peers(&mut self) {
         let block_duration = Duration::from_secs(600);
         let mut expired_peers = Vec::new();
@@ -27,6 +29,19 @@ impl NetworkLayer {
         }
     }
 
+    /// Runs the main event loop for the `NetworkLayer`.
+    ///
+    /// This function listens for events from the `libp2p` `Swarm` and for
+    /// commands from other parts of the application. It also periodically
+    /// cleans up the list of blocked peers.
+    ///
+    /// # Arguments
+    ///
+    /// * `incoming_messages` - The sender for incoming chat messages.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the event loop fails.
     pub async fn run(&mut self, incoming_messages: mpsc::UnboundedSender<Message>) -> Result<()> {
         info!("Starting network event loop");
 

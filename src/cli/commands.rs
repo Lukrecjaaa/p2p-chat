@@ -1,3 +1,5 @@
+//! This module defines the core data structures and commands used throughout the
+//! application, particularly for the CLI and TUI.
 use crate::crypto::Identity;
 use crate::network::NetworkHandle;
 use crate::storage::{FriendsStore, MessageStore, OutboxStore};
@@ -10,34 +12,69 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use tracing::{debug, info};
 
+/// Represents the result of attempting to deliver a message to a mailbox.
 pub enum MailboxDeliveryResult {
+    /// The message was successfully delivered to the specified number of mailboxes.
     Success(usize),
+    /// The message could not be delivered to any mailboxes.
     Failure,
 }
 
+/// Represents the central state and functionality of the application node.
+///
+/// This struct holds all the necessary components for the application to run,
+/// such as the user's identity, storage, network handle, and synchronization engine.
 pub struct Node {
+    /// The user's identity.
     pub identity: Arc<Identity>,
+    /// The store for managing friends.
     pub friends: Arc<dyn FriendsStore + Send + Sync>,
+    /// The store for managing message history.
     pub history: Arc<dyn MessageStore + Send + Sync>,
+    /// The store for managing outgoing messages.
     pub outbox: Arc<dyn OutboxStore + Send + Sync>,
+    /// The handle for interacting with the network layer.
     pub network: NetworkHandle,
+    /// The sender for sending notifications to the TUI.
     pub ui_notify_tx: mpsc::UnboundedSender<UiNotification>,
-    pub web_notify_tx: Option<mpsc::UnboundedSender<UiNotification>>,
+    /// The synchronization engine.
     pub sync_engine: Arc<Mutex<SyncEngine>>,
 }
 
+/// Represents a notification to be sent to the UI.
+#[derive(Clone, Debug)]
 pub enum UiNotification {
+    /// A new message has been received.
     NewMessage(Message),
+    /// A peer has connected.
     PeerConnected(PeerId),
+    /// A peer has disconnected.
     PeerDisconnected(PeerId),
+    /// The delivery status of a message has been updated.
     DeliveryStatusUpdate {
+        /// The ID of the message.
         message_id: uuid::Uuid,
+        /// The new delivery status.
         new_status: crate::types::DeliveryStatus,
     },
 }
 
 impl Node {
-    // This helper function is now more generic to be used by the active retry logic.
+    /// Forwards a message to a set of mailboxes.
+    ///
+    /// This function attempts to deliver a message to a set of mailboxes for a
+    /// given friend. It will try to deliver the message to at least two mailboxes
+    /// for redundancy.
+    ///
+    /// # Arguments
+    ///
+    /// * `message` - The message to forward.
+    /// * `friend` - The friend to whom the message is being sent.
+    /// * `providers` - The set of mailboxes to try.
+    ///
+    /// # Returns
+    ///
+    /// A `MailboxDeliveryResult` indicating whether the delivery was successful.
     pub async fn forward_to_mailboxes(
         &self,
         message: &Message,

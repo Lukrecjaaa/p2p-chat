@@ -1,3 +1,9 @@
+/**
+ * @file peerBranding.ts
+ * @brief This file provides utilities for generating unique visual branding (gradients and cat images)
+ * for different peers based on a given seed. It ensures visual consistency and readability
+ * of generated color schemes.
+ */
 import cat1 from '@/assets/1.gif'
 import cat2 from '@/assets/2.gif'
 import cat3 from '@/assets/3.gif'
@@ -9,8 +15,17 @@ import cat8 from '@/assets/8.gif'
 
 export type GradientPair = readonly [string, string]
 
+/**
+ * An array of imported cat GIF images used for peer branding.
+ * @type {ReadonlyArray<string>}
+ */
 export const catImages = [cat1, cat2, cat3, cat4, cat5, cat6, cat7, cat8] as const
 
+/**
+ * A collection of predefined gradient color pairs used for peer branding.
+ * Each pair consists of two hexadecimal color strings.
+ * @type {GradientPair[]}
+ */
 export const gradientPalettes: GradientPair[] = [
   ['#ff6b6b', '#f06595'], // vivid magenta
   ['#ff9f43', '#ff6f00'], // warm orange
@@ -38,6 +53,10 @@ export const gradientPalettes: GradientPair[] = [
   ['#c31432', '#240b36'], // crimson
 ] as const
 
+/**
+ * The default gradient pair used when no specific gradient is selected or available.
+ * @type {GradientPair}
+ */
 export const defaultGradient: GradientPair = ['#fafafa', '#ececec']
 
 type RGB = { r: number; g: number; b: number }
@@ -97,6 +116,14 @@ function lightenHex(hex: string, amount: number): string {
   })
 }
 
+/**
+ * Ensures that a given gradient pair has sufficient luminance for readability.
+ * If the average luminance is below `minLuminance`, the colors are lightened proportionally.
+ *
+ * @param {GradientPair | undefined} gradient - The input gradient pair to check and potentially adjust.
+ * @param {number} [minLuminance=0.55] - The minimum desired average relative luminance for the gradient.
+ * @returns {GradientPair} The original or lightened gradient pair, ensuring readability.
+ */
 export function ensureReadableGradient(gradient?: GradientPair, minLuminance = 0.55): GradientPair {
   if (!gradient) return defaultGradient
 
@@ -110,6 +137,16 @@ export function ensureReadableGradient(gradient?: GradientPair, minLuminance = 0
   return [lightenHex(gradient[0], lightenAmount), lightenHex(gradient[1], lightenAmount)]
 }
 
+/**
+ * Generates unique branding (gradient and cat image) for a peer based on a seed.
+ * The seed is used to consistently select a gradient and cat image from predefined palettes.
+ *
+ * @param {string | null | undefined} seed - A string seed (e.g., peer ID) to generate consistent branding.
+ * @returns {object} An object containing the generated hash, gradient pair, and cat image.
+ * @property {number} hash - The numerical hash derived from the seed.
+ * @property {GradientPair} gradient - A two-string array representing the gradient colors.
+ * @property {string} catImage - The URL/path to the selected cat image.
+ */
 export function getPeerBranding(seed?: string | null) {
   const normalized = normalizeSeed(seed)
   const hash = hashSeed(normalized)
@@ -123,6 +160,14 @@ export function getPeerBranding(seed?: string | null) {
   }
 }
 
+/**
+ * Generates a CSS `linear-gradient` style string for a given peer seed and angle.
+ * The gradient colors are determined by `getPeerBranding`.
+ *
+ * @param {string | null | undefined} seed - A string seed (e.g., peer ID) to determine the gradient.
+ * @param {number} [angle=135] - The angle of the linear gradient in degrees.
+ * @returns {string} A CSS `linear-gradient` string, e.g., "linear-gradient(135deg, #HEX1, #HEX2)".
+ */
 export function getGradientStyle(seed?: string | null, angle = 135) {
   const { gradient } = getPeerBranding(seed)
   return `linear-gradient(${angle}deg, ${gradient[0]}, ${gradient[1]})`

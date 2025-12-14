@@ -1,3 +1,4 @@
+//! This module contains the core logic for dispatching UI actions.
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -12,6 +13,20 @@ use crate::ui::{UIAction, UIEvent};
 use super::context::CommandContext;
 use super::execute::execute_chat_command;
 
+/// Handles incoming `UIAction`s and dispatches them to appropriate handlers.
+///
+/// This function is the central point for processing user-initiated actions,
+/// translating them into background tasks or direct application responses.
+///
+/// # Arguments
+///
+/// * `action` - The `UIAction` to be handled.
+/// * `node` - A shared reference to the application's core `Node`.
+/// * `ui_sender` - The sender for emitting `UIEvent`s back to the UI.
+///
+/// # Errors
+///
+/// Returns an error if an unrecoverable issue occurs during action processing.
 pub async fn handle_ui_action(
     action: UIAction,
     node: &Arc<Node>,

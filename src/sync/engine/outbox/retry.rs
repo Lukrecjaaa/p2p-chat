@@ -1,3 +1,4 @@
+//! This module contains logic for retrying the delivery of messages in the outbox.
 use anyhow::{anyhow, Result};
 use tracing::{debug, info, warn};
 
@@ -6,6 +7,17 @@ use crate::network::NetworkHandle;
 use super::super::SyncEngine;
 
 impl SyncEngine {
+    /// Retries sending all pending messages in the outbox.
+    ///
+    /// This function attempts direct delivery to connected peers first. If direct
+    /// delivery fails or the peer is not connected, it then attempts to forward
+    /// the message to available mailbox providers.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if there are issues accessing the
+    /// outbox or network. Individual message delivery failures are logged
+    /// but do not stop the overall retry process.
     pub async fn retry_outbox(&mut self) -> Result<()> {
         let pending_messages = self.outbox.get_pending().await?;
         if pending_messages.is_empty() {
@@ -80,6 +92,23 @@ impl SyncEngine {
         Ok(())
     }
 
+    /// Attempts to directly deliver a message to its recipient.
+    ///
+    /// This function checks the `BackoffManager` to see if a direct attempt
+    /// is allowed. If successful, the message is removed from the outbox.
+    ///
+    /// # Arguments
+    ///
+    /// * `network` - The `NetworkHandle` to use for sending the message.
+    /// * `message` - The message to attempt direct delivery for.
+    ///
+    /// # Returns
+    ///
+    /// `true` if direct delivery was successful, `false` otherwise.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if there are issues sending the message.
     async fn attempt_direct_delivery(
         &mut self,
         network: &NetworkHandle,

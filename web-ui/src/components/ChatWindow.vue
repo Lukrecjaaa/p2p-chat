@@ -1,5 +1,19 @@
+/**
+ * @file ChatWindow.vue
+ * @brief This component displays the chat interface for a selected conversation.
+ * It includes message display, a message input field, peer information, and handles
+ * message sending, loading older messages, and read receipts. It also dynamically
+ * themes message bubbles based on peer branding.
+ */
 <template>
+  <!--
+    @component ChatWindow
+    @description Displays the chat interface for a selected conversation,
+    including messages, message input, and peer information.
+    Handles message sending, loading older messages, and read receipts.
+  -->
   <div class="chat-window" :style="conversationThemeStyle">
+    <!-- @section Empty State -->
     <div v-if="!conversation" class="empty-state">
       <div class="empty-icon">
         <img src="/conversation-select.ico" alt="" />
@@ -7,24 +21,38 @@
       <h3>Select a conversation</h3>
       <p>Choose a chat from the list to start messaging</p>
     </div>
+    <!-- @section Chat Content (if conversation is selected) -->
     <template v-else>
+      <!-- @element chat-header - Displays the active conversation's peer information. -->
       <div class="chat-header title-bar">
         <div class="peer-info">
+          <!--
+            @component FramedAvatar
+            @description Displays the peer's avatar and name.
+            @prop {string} name - The name or peer ID to display.
+            @prop {string} peerId - The peer ID for avatar generation.
+            @prop {string} size - The size of the avatar ('small').
+          -->
           <FramedAvatar
             :name="conversation.nickname || conversation.peer_id"
             :peer-id="conversation.peer_id"
             size="small"
           />
           <div>
+            <!-- @element peer-name - Displays the nickname or truncated peer ID. -->
             <div class="title-bar-text">{{ conversation.nickname || truncatePeerId(conversation.peer_id) }}</div>
+            <!-- @element peer-status - Displays the online/offline status. -->
             <span class="status" :class="{ online: conversation.online }">
               {{ conversation.online ? 'Online' : 'Offline' }}
             </span>
           </div>
         </div>
       </div>
+      <!-- @element messages-container - Scrollable container for chat messages. -->
       <div class="messages-container has-scrollbar" ref="messagesContainer" @scroll="handleScroll">
+        <!-- @element load-more-container - Area for loading older messages button/indicator. -->
         <div v-if="hasMoreOlderMessages" class="load-more-container">
+          <!-- @element btn-load-more - Button to load more older messages. -->
           <button
             v-if="!isLoadingOlderMessages"
             @click="loadMore"
@@ -32,10 +60,13 @@
           >
             Load older messages
           </button>
+          <!-- @element loading-older - Text indicating older messages are being loaded. -->
           <div v-else class="loading-older">Loading older messages...</div>
         </div>
+        <!-- @element messages - Container for individual message elements. Uses TransitionGroup for animations. -->
         <TransitionGroup name="message" tag="div" class="messages">
           <template v-for="(msg, index) in activeMessages" :key="msg.id">
+            <!-- @element date-separator - Separator displaying the date for message groups. -->
             <div
               v-if="shouldShowDateSeparator(index)"
               :key="`date-${msg.id}`"
@@ -43,11 +74,13 @@
             >
               <span class="date-separator-text">{{ formatDateSeparator(msg.timestamp) }}</span>
             </div>
+            <!-- @element message - Individual message bubble. -->
             <div
               class="message"
               :class="{ sent: msg.sender === myPeerId, received: msg.sender !== myPeerId }"
               :data-message-id="msg.id"
             >
+              <!-- @element message-tooltip - The actual message content and metadata wrapper. -->
               <div
                 role="tooltip"
                 class="message-tooltip"
@@ -56,10 +89,13 @@
                   { tinted: msg.sender === myPeerId }
                 ]"
               >
+                <!-- @element message-content - The textual content of the message. -->
                 <div class="message-content">{{ msg.content }}</div>
+                <!-- @element message-meta - Contains message timestamp and delivery status icon. -->
                 <div class="message-meta">
                   {{ formatMessageTime(msg.timestamp) }}
                   <span v-if="msg.sender === myPeerId">
+                    <!-- @element delivery-icon - Icon indicating message delivery status. -->
                     · <span class="mdi" :class="getDeliveryIconClass(msg.delivery_status)"></span>
                   </span>
                 </div>
@@ -68,14 +104,19 @@
           </template>
         </TransitionGroup>
       </div>
+      <!-- @element message-input-container - Area for message input field and send button. -->
       <div class="message-input-container">
+        <!-- @element message-form - Form for typing and sending messages. -->
         <form @submit.prevent="handleSend" class="field-row">
+          <!-- @element message-input - Input field for typing messages. -->
           <input
+            ref="messageInput"
             v-model="messageText"
             type="text"
             placeholder="Type a message..."
             :disabled="sending"
           />
+          <!-- @element send-button - Button to send the typed message. -->
           <button type="submit" :disabled="!messageText.trim() || sending" class="send-button">
             <img src="/send-button.ico" alt="" class="send-icon" />
             Send
@@ -96,8 +137,24 @@ import type { DeliveryStatus } from '@/api/types'
 import FramedAvatar from './FramedAvatar.vue'
 import { getPeerBranding, ensureReadableGradient } from '@/peerBranding'
 
+/**
+ * Pinia store for managing conversations state and actions.
+ * @type {ReturnType<typeof useConversationsStore>}
+ */
 const conversationsStore = useConversationsStore()
+/**
+ * Pinia store for managing the user's identity.
+ * @type {ReturnType<typeof useIdentityStore>}
+ */
 const identityStore = useIdentityStore()
+/**
+ * Reactive references to conversation-related state from the conversations store.
+ * @property {Ref<string | null>} activeConversation - The peer ID of the currently active conversation.
+ * @property {Ref<Array>} activeMessages - List of messages for the active conversation.
+ * @property {Ref<Array>} conversations - All known conversations.
+ * @property {Ref<boolean>} isLoadingOlderMessages - Flag indicating if older messages are being loaded.
+ * @property {Ref<boolean>} hasMoreOlderMessages - Flag indicating if there are more older messages to load.
+ */
 const {
   activeConversation,
   activeMessages,
@@ -105,20 +162,68 @@ const {
   isLoadingOlderMessages,
   hasMoreOlderMessages,
 } = storeToRefs(conversationsStore)
+/**
+ * Reactive reference to the user's identity from the identity store.
+ * @property {Ref<Identity | null>} identity - The current user's identity object.
+ */
 const { identity } = storeToRefs(identityStore)
 
+/**
+ * Reactive state for the message input field text.
+ * @type {Ref<string>}
+ */
 const messageText = ref('')
+/**
+ * Reactive state indicating if a message is currently being sent.
+ * @type {Ref<boolean>}
+ */
 const sending = ref(false)
+/**
+ * Template ref for the messages container DOM element.
+ * @type {Ref<HTMLElement | null>}
+ */
 const messagesContainer = ref<HTMLElement | null>(null)
+/**
+ * Template ref for the message input field DOM element.
+ * @type {Ref<HTMLInputElement | null>}
+ */
+const messageInput = ref<HTMLInputElement | null>(null)
+/**
+ * Reactive state to control automatic scrolling to the bottom of the chat.
+ * @type {Ref<boolean>}
+ */
 const shouldAutoScroll = ref(true)
-const isUserScrolling = ref(false)
+/**
+ * Reactive state to track if the user is actively scrolling. (Currently not used but can be for more complex logic)
+ * @type {Ref<boolean>}
+ */
+const isUserScrolling = ref(false) // Not currently used, but useful for more complex scroll logic
+/**
+ * Set to store IDs of messages for which read receipts have already been sent.
+ * Prevents duplicate read receipt API calls.
+ * @type {Ref<Set<string>>}
+ */
 const readReceiptsSent = ref<Set<string>>(new Set())
 
+/**
+ * Computed property that returns the current user's peer ID.
+ * @computed
+ * @returns {string | undefined} The peer ID or undefined if not available.
+ */
 const myPeerId = computed(() => identity.value?.peer_id)
 
-// Intersection Observer for read receipts
+/**
+ * Intersection Observer instance for detecting message visibility for read receipts.
+ * @type {IntersectionObserver | null}
+ */
 let observer: IntersectionObserver | null = null
 
+/**
+ * Sets up the Intersection Observer to monitor message elements for visibility.
+ * When a received message becomes 50% visible, a read receipt is sent.
+ * Disconnects any existing observer before creating a new one.
+ * @function setupIntersectionObserver
+ */
 function setupIntersectionObserver() {
   if (observer) {
     observer.disconnect()
@@ -134,7 +239,7 @@ function setupIntersectionObserver() {
           const msg = activeMessages.value.find((m) => m.id === msgId)
           if (!msg) return
 
-          // Only send read receipt for received messages (not sent by me)
+          // Only send read receipt for received messages (not sent by me) and if not already read/sent
           if (
             msg.sender !== myPeerId.value &&
             msg.delivery_status !== 'Read' &&
@@ -144,16 +249,16 @@ function setupIntersectionObserver() {
             readReceiptsSent.value.add(msgId)
             markMessageRead(msgId).catch((err) => {
               console.error('[ReadReceipt] Failed:', err)
-              readReceiptsSent.value.delete(msgId) // Retry later
+              readReceiptsSent.value.delete(msgId) // Allow retry later if API call failed
             })
           }
         }
       })
     },
-    { threshold: 0.5 } // 50% visible
+    { threshold: 0.5 } // Trigger when 50% of the target is visible
   )
 
-  // Observe all message elements
+  // Observe all message elements after the next DOM update
   nextTick(() => {
     if (!messagesContainer.value) return
     const messageElements = messagesContainer.value.querySelectorAll('[data-message-id]')
@@ -165,26 +270,47 @@ function setupIntersectionObserver() {
   })
 }
 
+/**
+ * Computed property that returns the currently active conversation object.
+ * @computed
+ * @returns {Conversation | null} The active conversation object or null if none is active.
+ */
 const conversation = computed(() => {
   if (!activeConversation.value) return null
   return conversations.value.find(c => c.peer_id === activeConversation.value)
 })
 
+/**
+ * Computed property that retrieves branding information for the active conversation's peer.
+ * @computed
+ * @returns {object | null} Branding object for the peer, including gradient, or null.
+ */
 const conversationBranding = computed(() => {
   if (!conversation.value) return null
   return getPeerBranding(conversation.value.peer_id)
 })
 
+/**
+ * Computed property that ensures the gradient for message bubbles is readable.
+ * @computed
+ * @returns {Array<string> | null} An array of two color strings representing the gradient, or null.
+ */
 const bubbleGradient = computed(() => {
   const gradient = conversationBranding.value?.gradient
   return ensureReadableGradient(gradient)
 })
 
+/**
+ * Computed property that generates CSS style object for conversation-specific theming.
+ * Uses custom CSS properties for message bubble colors.
+ * @computed
+ * @returns {object} CSS style object.
+ */
 const conversationThemeStyle = computed(() => {
   const gradient = bubbleGradient.value || null
-  const start = gradient ? gradient[0] : '#fafafa'
-  const end = gradient ? gradient[1] : '#ececec'
-  const border = gradient ? gradient[0] : '#d7dce1'
+  const start = gradient ? gradient[0] : '#fafafa' // Default start color
+  const end = gradient ? gradient[1] : '#ececec'   // Default end color
+  const border = gradient ? gradient[0] : '#d7dce1' // Default border color
   return {
     '--conversation-bubble-start': start,
     '--conversation-bubble-end': end,
@@ -192,16 +318,35 @@ const conversationThemeStyle = computed(() => {
   }
 })
 
+/**
+ * Truncates a peer ID for display, showing the beginning and end with an ellipsis.
+ * @function truncatePeerId
+ * @param {string} peerId - The full peer ID.
+ * @returns {string} The truncated peer ID.
+ */
 function truncatePeerId(peerId: string): string {
   if (peerId.length <= 12) return peerId
   return peerId.substring(0, 8) + '...' + peerId.substring(peerId.length - 4)
 }
 
+/**
+ * Formats a message timestamp into a local time string (e.g., "HH:MM AM/PM").
+ * @function formatMessageTime
+ * @param {number} timestamp - The Unix timestamp in milliseconds.
+ * @returns {string} The formatted time string.
+ */
 function formatMessageTime(timestamp: number): string {
   const date = new Date(timestamp)
   return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
 }
 
+/**
+ * Checks if two timestamps fall on the same calendar day.
+ * @function isSameDay
+ * @param {number} timestamp1 - The first Unix timestamp.
+ * @param {number} timestamp2 - The second Unix timestamp.
+ * @returns {boolean} True if both timestamps are on the same day, false otherwise.
+ */
 function isSameDay(timestamp1: number, timestamp2: number): boolean {
   const d1 = new Date(timestamp1)
   const d2 = new Date(timestamp2)
@@ -210,14 +355,27 @@ function isSameDay(timestamp1: number, timestamp2: number): boolean {
          d1.getDate() === d2.getDate()
 }
 
+/**
+ * Determines if a date separator should be displayed before a message.
+ * A separator is shown for the first message or if the current message's date differs from the previous one.
+ * @function shouldShowDateSeparator
+ * @param {number} index - The index of the current message in the activeMessages array.
+ * @returns {boolean} True if a date separator should be shown, false otherwise.
+ */
 function shouldShowDateSeparator(index: number): boolean {
-  if (index === 0) return true // Always show for first message
+  if (index === 0) return true // Always show for the very first message
   const currentMsg = activeMessages.value[index]
   const previousMsg = activeMessages.value[index - 1]
-  if (!currentMsg || !previousMsg) return false
+  if (!currentMsg || !previousMsg) return false // Should not happen if index > 0
   return !isSameDay(currentMsg.timestamp, previousMsg.timestamp)
 }
 
+/**
+ * Formats a timestamp to be displayed as a date separator (e.g., "Today", "Yesterday", "Month Day, Year").
+ * @function formatDateSeparator
+ * @param {number} timestamp - The Unix timestamp in milliseconds.
+ * @returns {string} The formatted date string.
+ */
 function formatDateSeparator(timestamp: number): string {
   const date = new Date(timestamp)
   const today = new Date()
@@ -235,56 +393,82 @@ function formatDateSeparator(timestamp: number): string {
   }
 }
 
+/**
+ * Returns the appropriate Material Design Icon class based on the message delivery status.
+ * @function getDeliveryIconClass
+ * @param {DeliveryStatus} status - The delivery status of the message.
+ * @returns {string} The CSS class for the delivery icon.
+ */
 function getDeliveryIconClass(status: DeliveryStatus): string {
   switch (status) {
     case 'Sending':
-      return 'mdi-clock-outline'
+      return 'mdi-clock-outline' // Icon for message being sent
     case 'Sent':
-      return 'mdi-check'
+      return 'mdi-check'         // Icon for message sent to server
     case 'Delivered':
-      return 'mdi-check-all'
+      return 'mdi-check-all'     // Icon for message delivered to recipient
     case 'Read':
-      return 'mdi-check-all read'
+      return 'mdi-check-all read' // Icon for message read by recipient
     default:
       return ''
   }
 }
 
+/**
+ * Checks the current scroll position of the messages container to determine
+ * if auto-scrolling should be enabled. Auto-scrolls if the user is near the bottom.
+ * @function checkScrollPosition
+ */
 function checkScrollPosition() {
   if (!messagesContainer.value) return
 
   const container = messagesContainer.value
+  // Distance from the bottom of the scrollable area
   const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
 
-  // Consider "at bottom" if within 100px
+  // If the user is within 100 pixels from the bottom, enable auto-scroll
   shouldAutoScroll.value = distanceFromBottom < 100
 }
 
+/**
+ * Handles scroll events on the messages container.
+ * Calls `checkScrollPosition` and triggers `loadMore` if scrolled near the top.
+ * @function handleScroll
+ */
 function handleScroll() {
   checkScrollPosition()
 
   // Check if user scrolled near the top - trigger load more
   if (messagesContainer.value && messagesContainer.value.scrollTop < 100) {
+    // Only load more if there are older messages and not already loading
     if (hasMoreOlderMessages.value && !isLoadingOlderMessages.value) {
       loadMore()
     }
   }
 }
 
+/**
+ * Loads older messages for the active conversation.
+ * Preserves scroll position after new messages are loaded.
+ * @async
+ * @function loadMore
+ * @returns {Promise<void>}
+ */
 async function loadMore() {
   if (!activeConversation.value || isLoadingOlderMessages.value) return
 
   const container = messagesContainer.value
   if (!container) return
 
-  // Save scroll position before loading
+  // Save scroll position before loading new content
   const oldScrollHeight = container.scrollHeight
   const oldScrollTop = container.scrollTop
 
   try {
+    // Dispatch action to load older messages
     await conversationsStore.loadOlderMessages(activeConversation.value)
 
-    // Restore scroll position after loading older messages
+    // Wait for DOM to update with new messages, then restore scroll position
     await nextTick()
     const newScrollHeight = container.scrollHeight
     const heightDifference = newScrollHeight - oldScrollHeight
@@ -294,7 +478,13 @@ async function loadMore() {
   }
 }
 
+/**
+ * Scrolls the messages container to the bottom.
+ * @function scrollToBottom
+ * @param {boolean} [smooth=false] - Whether to use smooth scrolling behavior.
+ */
 function scrollToBottom(smooth = false) {
+  // Only auto-scroll if `shouldAutoScroll` is true
   if (!shouldAutoScroll.value) return
 
   nextTick(() => {
@@ -307,28 +497,47 @@ function scrollToBottom(smooth = false) {
   })
 }
 
+/**
+ * Handles sending a new message.
+ * Clears the input, sets sending state, dispatches message to store, scrolls to bottom,
+ * and refocuses the input field for quick follow-up messages.
+ * @async
+ * @function handleSend
+ * @returns {Promise<void>}
+ */
 async function handleSend() {
   if (!messageText.value.trim() || !activeConversation.value || sending.value) return
 
   const content = messageText.value.trim()
-  messageText.value = ''
-  sending.value = true
+  messageText.value = '' // Clear input immediately
+  sending.value = true // Set sending state to prevent duplicate sends
 
   try {
     await conversationsStore.sendMessage(activeConversation.value, content)
-    // Scroll to bottom smoothly after sending
+    // Scroll to bottom smoothly after successful send
     scrollToBottom(true)
   } catch (e) {
     console.error('Failed to send message:', e)
-    messageText.value = content // Restore message on error
+    messageText.value = content // Restore message if sending failed
   } finally {
-    sending.value = false
+    sending.value = false // Reset sending state
+    // Refocus the input field to allow quick follow-up messages
+    nextTick(() => {
+      messageInput.value?.focus()
+    })
   }
 }
 
-// Watch for new messages and scroll to bottom if user is near bottom
+/**
+ * Watcher for `activeMessages`.
+ * Auto-scrolls to the bottom if new messages are added and `shouldAutoScroll` is true.
+ * Re-sets up the Intersection Observer when messages change to monitor new elements.
+ * @function watch
+ * @param {Array} newMessages - The new array of messages.
+ * @param {Array | undefined} oldMessages - The previous array of messages.
+ */
 watch(activeMessages, (newMessages, oldMessages) => {
-  // Only auto-scroll if a new message was added at the end
+  // Only auto-scroll if a new message was added at the end (increased length)
   if (newMessages.length > (oldMessages?.length || 0)) {
     const wasAtBottom = shouldAutoScroll.value
     if (wasAtBottom) {
@@ -336,34 +545,53 @@ watch(activeMessages, (newMessages, oldMessages) => {
     }
   }
 
-  // Re-setup observer for new messages
+  // Re-setup observer for any new message elements that might have been added
   setupIntersectionObserver()
-}, { deep: false })
+}, { deep: false }) // Deep watch is not necessary for array length check and initial setup
 
-// Load messages when conversation changes
+/**
+ * Watcher for `activeConversation`.
+ * When the active conversation changes, it resets scroll state, clears read receipts,
+ * fetches messages for the new conversation, and scrolls to the bottom.
+ * @function watch
+ * @param {string | null} peerId - The peer ID of the newly active conversation.
+ * @fires conversationsStore.fetchMessages
+ * @fires setupIntersectionObserver
+ */
 watch(activeConversation, async (peerId) => {
   if (peerId) {
-    // Reset scroll state and read receipts
+    // Reset scroll state and read receipts for the new conversation
     shouldAutoScroll.value = true
     readReceiptsSent.value.clear()
 
+    // Fetch messages for the newly active conversation
     await conversationsStore.fetchMessages(peerId)
 
-    // Scroll to bottom immediately for new conversation
+    // After messages are fetched and rendered, scroll to bottom
     nextTick(() => {
       if (messagesContainer.value) {
         messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
       }
-      // Setup observer for new conversation
+      // Setup observer for the messages in the new conversation
       setupIntersectionObserver()
     })
   }
-}, { immediate: true })
+}, { immediate: true }) // Run immediately on component mount if activeConversation already has a value
 
+/**
+ * Lifecycle hook: Called after the component has mounted.
+ * Sets up the Intersection Observer to monitor message visibility.
+ * @function onMounted
+ */
 onMounted(() => {
   setupIntersectionObserver()
 })
 
+/**
+ * Lifecycle hook: Called before the component unmounts.
+ * Disconnects the Intersection Observer to prevent memory leaks.
+ * @function onUnmounted
+ */
 onUnmounted(() => {
   if (observer) {
     observer.disconnect()
@@ -641,3 +869,4 @@ onUnmounted(() => {
   image-rendering: crisp-edges;
 }
 </style>
+

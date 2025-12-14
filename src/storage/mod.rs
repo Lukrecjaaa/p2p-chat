@@ -1,3 +1,5 @@
+//! This module defines the storage interfaces and implementations for various
+//! application data, including friends, message history, mailboxes, and seen messages.
 pub mod friends;
 pub mod history;
 pub mod known_mailboxes;

@@ -1,3 +1,4 @@
+//! This module contains the handlers for mailbox-related network events.
 use super::super::{NetworkLayer, NetworkResponse};
 use crate::storage::MailboxStore;
 use crate::types::{MailboxRequest, MailboxResponse};
@@ -6,6 +7,18 @@ use libp2p::request_response::{self, OutboundRequestId, ResponseChannel};
 use tracing::{debug, error, info, warn};
 
 impl NetworkLayer {
+    /// Handles an event from the `MailboxBehaviour`.
+    ///
+    /// This function is called when an event is received from the `MailboxBehaviour`.
+    /// It dispatches the event to the appropriate handler.
+    ///
+    /// # Arguments
+    ///
+    /// * `event` - The `request_response::Event<MailboxRequest, MailboxResponse>` to handle.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if handling the event fails.
     pub(super) async fn handle_mailbox_event(
         &mut self,
         event: request_response::Event<MailboxRequest, MailboxResponse>,
@@ -44,12 +57,13 @@ impl NetworkLayer {
         Ok(())
     }
 
+    /// Handles an inbound mailbox request.
     async fn handle_mailbox_request(
         &mut self,
         request: MailboxRequest,
         channel: ResponseChannel<MailboxResponse>,
     ) -> Result<()> {
-        // Log request with readable format
+        // Log request with readable format.
         match &request {
             MailboxRequest::Put { recipient, message } => {
                 debug!(
@@ -175,6 +189,7 @@ impl NetworkLayer {
         Ok(())
     }
 
+    /// Handles an outbound mailbox response.
     async fn handle_mailbox_response(
         &mut self,
         request_id: OutboundRequestId,

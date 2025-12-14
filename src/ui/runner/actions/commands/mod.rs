@@ -1,3 +1,6 @@
+//! This module contains command dispatching logic for the UI runner.
+//!
+//! It maps command strings to their respective handler functions.
 mod friends;
 mod history;
 mod info;
@@ -8,6 +11,19 @@ use anyhow::Result;
 
 use super::context::CommandContext;
 
+/// Dispatches a command to the appropriate handler function.
+///
+/// This function takes a parsed command (parts) and the command context,
+/// then executes the corresponding command handler.
+///
+/// # Arguments
+///
+/// * `parts` - A slice of strings representing the command and its arguments.
+/// * `context` - The `CommandContext` providing access to the application's state.
+///
+/// # Returns
+///
+/// A `Result` indicating success or failure of the command execution.
 pub async fn dispatch(parts: &[&str], context: &CommandContext) -> Result<()> {
     match parts[0] {
         "send" => send::handle_send(parts, context).await,

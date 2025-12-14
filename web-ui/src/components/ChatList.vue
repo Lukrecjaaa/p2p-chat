@@ -1,27 +1,55 @@
+/**
+ * @file ChatList.vue
+ * @brief This component displays a list of chat conversations, user profile information,
+ * search functionality, and action buttons. It serves as the main navigation
+ * and information panel for the chat application, allowing users to select conversations,
+ * view friend status, and access various features.
+ */
 <template>
+  <!--
+    @component ChatList
+    @description Displays a list of chat conversations, user profile information,
+    search functionality, and action buttons. It serves as the main navigation
+    and information panel for the chat application.
+  -->
   <div class="chat-list window">
+    <!-- @element title-bar - The title bar for the chat list window. -->
     <div class="title-bar">
       <div class="title-bar-text">
+        <!-- @element titlebar-icon - Icon displayed in the title bar. -->
         <img src="/conversation-select.ico" alt="" class="titlebar-icon" />
         p2p-chat
       </div>
     </div>
 
+    <!-- @element window-body - The main content area of the chat list window. -->
     <div class="window-body has-space">
-      <!-- User Profile Header -->
+      <!-- @section User Profile Header -->
       <div class="user-profile-header">
+        <!-- @element gradient-canvas - Canvas for rendering background gradient effect. -->
         <canvas id="gradient-canvas-user-header" class="gradient-canvas"></canvas>
         <div class="header-content">
+          <!--
+            @component FramedAvatar
+            @description Displays the user's avatar with a frame.
+            @prop {string} name - The name to display or use for avatar generation.
+            @prop {string} peerId - The peer ID associated with the user.
+            @prop {string} size - The size of the avatar ('large', 'small', etc.).
+          -->
           <FramedAvatar :name="identity?.peer_id || 'User'" :peer-id="identity?.peer_id" size="large" />
+          <!-- @element user-info - Container for user's name and status. -->
           <div class="user-info">
+            <!-- @element user-name - Displays the current user's peer ID or 'User'. -->
             <div class="user-name">{{ identity?.peer_id || 'User' }}</div>
+            <!-- @element user-status - Displays the current user's online status. -->
             <div class="user-status">Available</div>
           </div>
         </div>
       </div>
 
-      <!-- Search Bar -->
+      <!-- @section Search Bar -->
       <div class="search-container">
+        <!-- @element contact-search - Input field for searching contacts. -->
         <input
           v-model="searchQuery"
           type="text"
@@ -30,40 +58,66 @@
         />
       </div>
 
+      <!-- @section Toolbar -->
       <div class="toolbar">
+        <!-- @element info-button - Button to toggle user info display. -->
         <button @click="$emit('toggleInfo')" title="Your Info">Info</button>
+        <!-- @element status-button - Button to toggle system status display. -->
         <button @click="$emit('toggleStatus')" title="System Status">Status</button>
+        <!-- @element add-friend-button - Button to toggle add friend modal. -->
         <button @click="$emit('toggleAddFriend')" title="Add Friend">Add Friend</button>
       </div>
 
+      <!-- @section Conversations Header -->
       <div class="friends-header">
+        <!-- @element folder-icon - Icon for the conversations header. -->
         <img src="/friends-folder.ico" alt="" class="folder-icon" />
         <span>Conversations</span>
       </div>
 
+      <!-- @section Conversation List -->
+      <!-- @element loading-indicator - Displays when conversations are loading. -->
       <div v-if="loading" class="loading">Loading...</div>
+      <!-- @element error-display - Displays error messages if conversation fetching fails. -->
       <div v-else-if="error" class="error">{{ error }}</div>
+      <!-- @element conversation-table - Table displaying the list of conversations. -->
       <table v-else class="conversation-table">
         <tbody>
+          <!--
+            @element conversation-row - Individual row representing a conversation.
+            @prop {object} conv - The conversation object.
+            @prop {string} conv.peer_id - The peer ID of the conversation partner.
+            @prop {string | null} conv.nickname - The nickname of the conversation partner.
+            @prop {boolean} conv.online - Online status of the conversation partner.
+            @prop {object | null} conv.last_message - The last message in the conversation.
+            @event click - Emits 'selectConversation' with the peer ID when clicked.
+          -->
           <tr
             v-for="conv in filteredConversations"
             :key="conv.peer_id"
             :class="{ highlighted: conv.peer_id === activeConversation }"
             @click="$emit('selectConversation', conv.peer_id)"
           >
+            <!-- @element avatar-cell - Cell containing the conversation partner's avatar and online status. -->
             <td class="avatar-cell">
               <FramedAvatar :name="conv.nickname || conv.peer_id" :peer-id="conv.peer_id" size="small" />
+              <!-- @element status-icon - Displays online/offline status icon for the conversation partner. -->
               <img
                 class="status-icon"
                 :src="conv.online ? '/status-online.ico' : '/status-offline.ico'"
                 :alt="conv.online ? 'Online' : 'Offline'"
               />
             </td>
+            <!-- @element info-cell - Cell containing the conversation partner's name and last message. -->
             <td class="info-cell">
+              <!-- @element peer-name - Displays the nickname or truncated peer ID of the conversation partner. -->
               <div class="peer-name">{{ conv.nickname || truncatePeerId(conv.peer_id) }}</div>
+              <!-- @element last-message - Displays the content of the last message or 'No messages yet'. -->
               <div class="last-message">{{ conv.last_message?.content || 'No messages yet' }}</div>
             </td>
+            <!-- @element time-cell - Cell containing the timestamp of the last message. -->
             <td class="time-cell">
+              <!-- @element timestamp - Displays the formatted timestamp of the last message. -->
               <span v-if="conv.last_message" class="timestamp">
                 {{ formatTimestamp(conv.last_message.timestamp) }}
               </span>
@@ -83,6 +137,13 @@ import { useIdentityStore } from '@/stores/identity'
 import FramedAvatar from './FramedAvatar.vue'
 import gradientGL from 'gradient-gl'
 
+/**
+ * @emits
+ * @event selectConversation - Emitted when a conversation is selected, with the peer ID as payload.
+ * @event toggleAddFriend - Emitted when the "Add Friend" button is clicked.
+ * @event toggleInfo - Emitted when the "Info" button is clicked.
+ * @event toggleStatus - Emitted when the "Status" button is clicked.
+ */
 defineEmits<{
   selectConversation: [peerId: string]
   toggleAddFriend: []
@@ -90,15 +151,52 @@ defineEmits<{
   toggleStatus: []
 }>()
 
+/**
+ * Pinia store for managing conversations.
+ * @type {ReturnType<typeof useConversationsStore>}
+ */
 const conversationsStore = useConversationsStore()
+/**
+ * Pinia store for managing the user's identity.
+ * @type {ReturnType<typeof useIdentityStore>}
+ */
 const identityStore = useIdentityStore()
+/**
+ * Destructured reactive references from the conversations store for easy access.
+ * @property {Ref<Array>} sortedConversations - Sorted list of conversations.
+ * @property {Ref<string | null>} activeConversation - The currently active conversation's peer ID.
+ * @property {Ref<boolean>} loading - Loading state for conversations.
+ * @property {Ref<string | null>} error - Error message for conversations.
+ */
 const { sortedConversations, activeConversation, loading, error } = storeToRefs(conversationsStore)
+/**
+ * Destructured reactive reference for the user's identity from the identity store.
+ * @property {Ref<Identity | null>} identity - The current user's identity.
+ */
 const { identity } = storeToRefs(identityStore)
 
+/**
+ * Reactive state for the search query input.
+ * @type {Ref<string>}
+ */
 const searchQuery = ref('')
+/**
+ * Reactive reference to the canvas element used for the gradient background.
+ * @type {Ref<HTMLCanvasElement | null>}
+ */
 const gradientCanvas = ref<HTMLCanvasElement | null>(null)
+/**
+ * Instance of the gradientGL library.
+ * @type {any}
+ */
 let gradientInstance: any = null
 
+/**
+ * Computed property that filters the list of conversations based on the search query.
+ * Searches across nickname, peer ID, and last message content.
+ * @computed
+ * @returns {Array} The filtered list of conversations.
+ */
 const filteredConversations = computed(() => {
   if (!searchQuery.value.trim()) {
     return sortedConversations.value
@@ -116,11 +214,25 @@ const filteredConversations = computed(() => {
   })
 })
 
+/**
+ * Truncates a peer ID for display purposes, showing the beginning and end with an ellipsis in between.
+ * @function truncatePeerId
+ * @param {string} peerId - The full peer ID to truncate.
+ * @returns {string} The truncated peer ID.
+ */
 function truncatePeerId(peerId: string): string {
   if (peerId.length <= 12) return peerId
   return peerId.substring(0, 8) + '...' + peerId.substring(peerId.length - 4)
 }
 
+/**
+ * Formats a Unix timestamp into a human-readable string.
+ * Displays time for messages within 24 hours, weekday for messages within 7 days,
+ * and date for older messages.
+ * @function formatTimestamp
+ * @param {number} timestamp - The Unix timestamp in milliseconds.
+ * @returns {string} The formatted date/time string.
+ */
 function formatTimestamp(timestamp: number): string {
   const date = new Date(timestamp)
   const now = new Date()
@@ -129,19 +241,30 @@ function formatTimestamp(timestamp: number): string {
 
   if (hours < 24) {
     return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-  } else if (hours < 168) {
+  } else if (hours < 168) { // 7 days
     return date.toLocaleDateString('en-US', { weekday: 'short' })
   } else {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 }
 
+/**
+ * Lifecycle hook that runs after the component is mounted.
+ * Initializes the gradient background using gradientGL.
+ * @function onMounted
+ * @async
+ */
 onMounted(async () => {
   // gradient-gl uses a string ID to reference gradients
   // The first param is a gradient preset ID, second is a CSS selector
   gradientInstance = await gradientGL('b1.365e', '#gradient-canvas-user-header')
 })
 
+/**
+ * Lifecycle hook that runs before the component is unmounted.
+ * Cleans up the gradientGL instance if necessary.
+ * @function onUnmounted
+ */
 onUnmounted(() => {
   // Clean up if needed
   gradientInstance = null

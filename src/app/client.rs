@@ -1,3 +1,4 @@
+//! This module contains the primary entry point for running the application in client mode.
 use crate::cli::commands::{Node, UiNotification};
 use crate::crypto::{Identity, StorageEncryption};
 use crate::network::NetworkLayer;
@@ -16,6 +17,24 @@ use std::time::Duration;
 use tokio::sync::{mpsc, Mutex};
 use tracing::{debug, error, info};
 
+/// Runs the application in client mode.
+///
+/// This function initializes and runs all the components required for the client
+/// to operate, including storage, networking, the synchronization engine,
+/// the terminal UI, and the web server.
+///
+/// # Arguments
+///
+/// * `identity` - The user's identity.
+/// * `db` - The database instance.
+/// * `encryption` - The encryption key for the storage, if enabled.
+/// * `port` - The port to listen on for P2P connections.
+/// * `web_port` - The port for the Web UI.
+///
+/// # Errors
+///
+/// This function will return an error if any of the components fail to initialize
+/// or run.
 pub async fn run(
     identity: Arc<Identity>,
     db: sled::Db,
@@ -25,6 +44,7 @@ pub async fn run(
 ) -> Result<()> {
     println!("💬 Starting client mode");
 
+    // Initialize storage components.
     let friends = Arc::new(SledFriendsStore::new(db.clone(), encryption.clone())?);
     let history = Arc::new(MessageHistory::new(db.clone(), encryption.clone())?);
     let outbox = Arc::new(SledOutboxStore::new(db.clone(), encryption.clone())?);
@@ -38,9 +58,11 @@ pub async fn run(
 
     let bootstrap_nodes = vec![];
 
+    // Initialize the network layer.
     let (mut network_layer, network_handle) =
         NetworkLayer::new(identity.clone(), listen_addr, false, bootstrap_nodes)?;
 
+    // Create channels for communication between components.
     let (incoming_tx, mut incoming_rx) = mpsc::unbounded_channel::<Message>();
     let (ui_notify_tx, ui_notify_rx) = mpsc::unbounded_channel::<UiNotification>();
     let (web_notify_tx, web_notify_rx) = mpsc::unbounded_channel::<UiNotification>();
@@ -54,6 +76,7 @@ pub async fn run(
         known_mailboxes.clone(),
     );
 
+    // Initialize the synchronization engine.
     let (sync_engine_instance, sync_event_tx, mut sync_event_rx) = SyncEngine::new_with_network(
         Duration::from_secs(30),
         identity.clone(),
@@ -66,6 +89,7 @@ pub async fn run(
 
     network_layer.set_sync_event_sender(sync_event_tx.clone());
 
+    // Create the main application node context.
     let node = Arc::new(Node {
         identity,
         friends: friends.clone(),
@@ -73,12 +97,12 @@ pub async fn run(
         outbox: outbox.clone(),
         network: network_handle,
         ui_notify_tx,
-        web_notify_tx: Some(web_notify_tx.clone()),
         sync_engine: sync_engine.clone(),
     });
 
     println!("Client initialized. Starting network and TUI...\n");
 
+    // Spawn the synchronization engine task.
     let sync_engine_clone = sync_engine.clone();
     tokio::spawn(async move {
         let interval_duration = {
@@ -89,7 +113,7 @@ pub async fn run(
 
         info!("Starting sync engine with interval {:?}", interval_duration);
 
-        // Initial discovery and sync cycle
+        // Perform an initial discovery and sync cycle.
         {
             let mut engine = sync_engine_clone.lock().await;
             if let Err(e) = engine.initial_discovery().await {
@@ -100,6 +124,7 @@ pub async fn run(
             }
         }
 
+        // Main sync loop.
         loop {
             tokio::select! {
                 _ = interval_timer.tick() => {
@@ -126,31 +151,32 @@ pub async fn run(
     network_layer.set_sync_event_sender(sync_event_tx);
     network_layer.set_ui_notify_sender(network_notify_tx.clone());
 
+    // Spawn the network layer task.
     tokio::spawn(async move {
         if let Err(e) = network_layer.run(incoming_tx).await {
             error!("Network layer error: {}", e);
         }
     });
 
-    // Handle network notifications (delivery confirmations, read receipts)
+    // Handle network notifications (e.g., delivery confirmations).
     let node_for_network = node.clone();
     let web_notify_tx_for_network = web_notify_tx.clone();
     tokio::spawn(async move {
         while let Some(notification) = network_notify_rx.recv().await {
             match notification {
                 UiNotification::DeliveryStatusUpdate { message_id, new_status } => {
-                    // Update database
+                    // Update the delivery status in the database.
                     if let Err(e) = node_for_network.history.update_delivery_status(&message_id, new_status).await {
                         error!("Failed to update delivery status in database: {}", e);
                     }
 
-                    // Forward to web UI
+                    // Forward the notification to the web UI.
                     let _ = web_notify_tx_for_network.send(UiNotification::DeliveryStatusUpdate {
                         message_id,
                         new_status,
                     });
                 }
-                // Forward other notifications as-is
+                // Forward other notifications as-is.
                 other => {
                     let _ = web_notify_tx_for_network.send(other);
                 }
@@ -158,6 +184,7 @@ pub async fn run(
         }
     });
 
+    // Handle incoming messages from the network.
     let node_clone = node.clone();
     let seen_clone = seen.clone();
     let web_notify_tx_clone = web_notify_tx.clone();
@@ -185,7 +212,7 @@ pub async fn run(
                 error!("Failed to mark message {} as seen: {}", message.id, e);
             }
 
-            // Send delivery confirmation back to sender
+            // Send a delivery confirmation back to the sender.
             let confirmation = crate::types::DeliveryConfirmation {
                 original_message_id: message.id,
                 timestamp: chrono::Utc::now().timestamp_millis(),
@@ -204,6 +231,7 @@ pub async fn run(
                 }
             });
 
+            // Notify the UI and web server of the new message.
             let _ = node_clone
                 .ui_notify_tx
                 .send(UiNotification::NewMessage(message.clone()));
@@ -211,7 +239,7 @@ pub async fn run(
         }
     });
 
-    // Start web server
+    // Start the web server.
     let node_for_web = node.clone();
     tokio::spawn(async move {
         if let Err(e) = crate::web::start_server(node_for_web, web_port, web_notify_rx).await {
@@ -219,5 +247,6 @@ pub async fn run(
         }
     });
 
+    // Run the terminal UI.
     run_tui(node, ui_notify_rx, web_port).await
 }

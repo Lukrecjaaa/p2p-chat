@@ -1,3 +1,5 @@
+//! This module contains logic for directly retrying messages in the outbox
+//! for a specific peer.
 use anyhow::Result;
 use libp2p::PeerId;
 use tracing::{debug, info};
@@ -5,6 +7,20 @@ use tracing::{debug, info};
 use super::super::SyncEngine;
 
 impl SyncEngine {
+    /// Retries sending pending messages from the outbox to a specific peer.
+    ///
+    /// This function fetches all pending messages and attempts to send those
+    /// destined for `target_peer`. Successfully sent messages are removed
+    /// from the outbox.
+    ///
+    /// # Arguments
+    ///
+    /// * `target_peer` - The `PeerId` of the peer to retry sending messages to.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if there are issues accessing the
+    /// outbox or sending messages via the network.
     pub async fn retry_outbox_for_peer(&self, target_peer: &PeerId) -> Result<()> {
         let pending_messages = self.outbox.get_pending().await?;
 

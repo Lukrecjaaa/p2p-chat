@@ -1,3 +1,4 @@
+//! This module contains the primary entry point for running a mailbox node.
 use crate::crypto::{Identity, StorageEncryption};
 use crate::mailbox::MailboxNode;
 use crate::network::NetworkLayer;
@@ -7,6 +8,21 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+/// Runs a mailbox node.
+///
+/// This function initializes and runs a mailbox node, which is responsible for
+/// storing and forwarding messages for other peers in the network.
+///
+/// # Arguments
+///
+/// * `identity` - The identity of the node.
+/// * `db` - The database instance for storing mailbox data.
+/// * `encryption` - The encryption key for the storage.
+/// * `port` - The port to listen on for incoming connections.
+///
+/// # Errors
+///
+/// This function will return an error if the mailbox node fails to start.
 pub async fn run(
     identity: Arc<Identity>,
     db: sled::Db,

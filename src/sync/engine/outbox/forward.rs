@@ -1,4 +1,5 @@
 use std::time::Instant;
+use std::ops::Deref;
 
 use anyhow::{anyhow, Result};
 use tracing::{debug, info};
@@ -10,6 +11,26 @@ use crate::types::EncryptedMessage;
 use super::super::SyncEngine;
 
 impl SyncEngine {
+    /// Forwards a pending message to available mailbox providers.
+    ///
+    /// This function attempts to encrypt and store a message in at least two
+    /// mailbox providers for redundancy. It ranks available mailboxes and updates
+    /// their performance metrics.
+    ///
+    /// # Arguments
+    ///
+    /// * `network` - The `NetworkHandle` to use for interacting with the network.
+    /// * `message` - The message to encrypt and forward.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the message was successfully forwarded to at least one mailbox,
+    /// `false` otherwise.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the recipient is not a friend or if
+    /// there are issues with encryption or storage.
     pub(super) async fn forward_pending_message(
         &mut self,
         network: &NetworkHandle,
@@ -24,11 +45,17 @@ impl SyncEngine {
         };
 
         let recipient_hash = StorageEncryption::derive_recipient_hash(&friend.e2e_public_key);
+        // Encrypt the message content.
+        let encrypted_content = self
+            .identity
+            .deref()
+            .encrypt_for(&friend.e2e_public_key, &message.content)?;
+
         let encrypted_msg = EncryptedMessage {
             id: message.id,
             sender: self.identity.peer_id,
             recipient_hash,
-            encrypted_content: message.content.clone(),
+            encrypted_content,
             timestamp: message.timestamp,
             nonce: message.nonce,
             sender_pub_key: self.identity.hpke_public_key(),

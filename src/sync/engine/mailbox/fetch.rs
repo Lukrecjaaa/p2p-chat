@@ -1,3 +1,4 @@
+//! This module contains logic for fetching messages from mailbox providers.
 use std::time::Instant;
 
 use anyhow::{anyhow, Result};
@@ -11,6 +12,15 @@ use crate::sync::retry::RetryPolicy;
 use super::super::SyncEngine;
 
 impl SyncEngine {
+    /// Fetches messages from all discovered and available mailbox providers.
+    ///
+    /// This function iterates through available mailboxes, attempting to fetch
+    /// messages from each. It skips mailboxes that are currently backed off.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if fetching from any mailbox fails,
+    /// but it continues to try other mailboxes.
     pub async fn fetch_from_mailboxes(&mut self) -> Result<()> {
         if self.discovered_mailboxes.is_empty() {
             trace!("No mailbox nodes discovered, skipping fetch cycle.");
@@ -60,6 +70,23 @@ impl SyncEngine {
         Ok(())
     }
 
+    /// Fetches messages from a single mailbox provider.
+    ///
+    /// This function attempts to fetch messages from a specified mailbox,
+    /// processes them, and then acknowledges their receipt. It updates the
+    /// performance metrics for the mailbox based on the outcome.
+    ///
+    /// # Arguments
+    ///
+    /// * `peer_id` - The `PeerId` of the mailbox provider to fetch from.
+    ///
+    /// # Returns
+    ///
+    /// A `Vec` of `Uuid`s representing the IDs of processed messages.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if fetching or processing messages fails.
     pub async fn fetch_from_single_mailbox(&mut self, peer_id: PeerId) -> Result<Vec<Uuid>> {
         let Some(network) = self.network.clone() else {
             debug!("No network handle available for single mailbox fetch");

@@ -1,3 +1,4 @@
+//! This module contains the handlers for chat-related network events.
 use super::super::{NetworkLayer, NetworkResponse};
 use crate::cli::commands::UiNotification;
 use crate::types::{ChatRequest, ChatResponse, DeliveryStatus, Message};
@@ -7,6 +8,19 @@ use tokio::sync::mpsc;
 use tracing::{error, info, warn};
 
 impl NetworkLayer {
+    /// Handles an event from the `ChatBehaviour`.
+    ///
+    /// This function is called when an event is received from the `ChatBehaviour`.
+    /// It dispatches the event to the appropriate handler.
+    ///
+    /// # Arguments
+    ///
+    /// * `event` - The `request_response::Event<ChatRequest, ChatResponse>` to handle.
+    /// * `incoming_messages` - The sender for incoming chat messages.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if handling the event fails.
     pub(super) async fn handle_chat_event(
         &mut self,
         event: request_response::Event<ChatRequest, ChatResponse>,
@@ -47,6 +61,7 @@ impl NetworkLayer {
         Ok(())
     }
 
+    /// Handles an inbound chat request.
     async fn handle_chat_request(
         &mut self,
         request: ChatRequest,
@@ -82,7 +97,7 @@ impl NetworkLayer {
                     confirmation.original_message_id
                 );
 
-                // Notify UI about delivery status update via the ui_notify_tx channel
+                // Notify the UI about the delivery status update.
                 if let Some(ref ui_tx) = self.ui_notify_tx {
                     let _ = ui_tx.send(UiNotification::DeliveryStatusUpdate {
                         message_id: confirmation.original_message_id,
@@ -90,7 +105,7 @@ impl NetworkLayer {
                     });
                 }
 
-                // Send success response
+                // Send a success response.
                 let _ = self.swarm.behaviour_mut().chat.send_response(
                     channel,
                     ChatResponse::MessageResult {
@@ -102,7 +117,7 @@ impl NetworkLayer {
             ChatRequest::ReadReceipt { receipt } => {
                 info!("Received read receipt for message: {}", receipt.message_id);
 
-                // Notify UI about read status update
+                // Notify the UI about the read status update.
                 if let Some(ref ui_tx) = self.ui_notify_tx {
                     let _ = ui_tx.send(UiNotification::DeliveryStatusUpdate {
                         message_id: receipt.message_id,
@@ -110,7 +125,7 @@ impl NetworkLayer {
                     });
                 }
 
-                // Send success response
+                // Send a success response.
                 let _ = self.swarm.behaviour_mut().chat.send_response(
                     channel,
                     ChatResponse::MessageResult {
@@ -124,6 +139,7 @@ impl NetworkLayer {
         Ok(())
     }
 
+    /// Handles an outbound chat response.
     async fn handle_chat_response(
         &mut self,
         request_id: OutboundRequestId,

@@ -1,3 +1,4 @@
+//! This module contains the input handling logic for the chat UI mode.
 use super::super::{UIAction, UIState};
 use super::ChatMode;
 use anyhow::Result;
@@ -6,6 +7,20 @@ use tokio::sync::mpsc;
 use tracing::debug;
 
 impl ChatMode {
+    /// Handles a key event in chat mode.
+    ///
+    /// This function processes various key presses, including typing characters,
+    /// navigating input history, moving the cursor, and executing commands.
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - The current UI state.
+    /// * `key` - The `KeyEvent` to handle.
+    /// * `action_tx` - The sender for dispatching UI actions.
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error if a command execution fails.
     pub async fn handle_key(
         &mut self,
         state: &mut UIState,
@@ -103,6 +118,9 @@ impl ChatMode {
         Ok(())
     }
 
+    /// Updates the current input suggestion based on the input buffer content.
+    ///
+    /// This is typically used for command autocompletion.
     fn update_suggestion(&mut self, state: &UIState) {
         let char_count = state.input_buffer.chars().count();
         if state.cursor_pos == char_count && !state.input_buffer.trim().is_empty() {
@@ -122,6 +140,12 @@ impl ChatMode {
         }
     }
 
+    /// Navigates through the input history.
+    ///
+    /// # Arguments
+    ///
+    /// * `state` - The current UI state.
+    /// * `up` - If `true`, navigates up (older entries); if `false`, navigates down (newer entries).
     fn navigate_history(&mut self, state: &mut UIState, up: bool) {
         if self.input_history.is_empty() {
             return;
@@ -152,6 +176,19 @@ impl ChatMode {
         }
     }
 
+    /// Executes a command based on the input string.
+    ///
+    /// This function parses the input, identifies commands like "send", and
+    /// dispatches appropriate `UIAction`s.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - The input string to parse and execute.
+    /// * `action_tx` - The sender for dispatching UI actions.
+    ///
+    /// # Errors
+    ///
+    /// This function returns an error if the action sender fails.
     async fn execute_command(
         &self,
         input: &str,

@@ -1,3 +1,5 @@
+//! This module contains handlers for processing Kademlia DHT query results
+//! within the synchronization engine.
 use crate::storage::KnownMailbox;
 use crate::sync::engine::events::DhtQueryResult;
 use crate::sync::engine::SyncEngine;
@@ -6,6 +8,20 @@ use libp2p::kad;
 use tracing::{debug, error, info, trace};
 
 impl SyncEngine {
+    /// Handles the result of a DHT query.
+    ///
+    /// This function processes `DhtQueryResult`s, typically updating the list
+    /// of discovered mailbox providers and triggering actions like retrying the outbox.
+    ///
+    /// # Arguments
+    ///
+    /// * `key` - The `kad::RecordKey` that the query was performed for.
+    /// * `result` - The `DhtQueryResult` containing the outcome of the query.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if processing the result fails, e.g.,
+    /// if there are issues saving a new mailbox to the database.
     pub async fn handle_dht_query_result(
         &mut self,
         key: kad::RecordKey,
@@ -43,7 +59,7 @@ impl SyncEngine {
                         info!("Discovered new mailbox provider: {}", provider);
                         self.backoff_manager.record_success(&provider);
 
-                        // Save newly discovered mailbox to database
+                        // Save newly discovered mailbox to database.
                         let known_mailbox = KnownMailbox::new(provider);
                         if let Err(e) = self.known_mailboxes.add_mailbox(known_mailbox).await {
                             error!("Failed to save mailbox {} to database: {}", provider, e);

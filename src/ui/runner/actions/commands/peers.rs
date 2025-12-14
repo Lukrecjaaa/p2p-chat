@@ -1,9 +1,19 @@
+//! This module contains the command handler for listing connected peers.
 use anyhow::Result;
 
 use crate::ui::UIEvent;
 
 use super::super::context::CommandContext;
 
+/// Lists all currently connected peers and their roles (friend, mailbox, or generic peer).
+///
+/// # Arguments
+///
+/// * `context` - The `CommandContext` providing access to the application's state and network.
+///
+/// # Errors
+///
+/// This function returns an error if retrieving the peer list from the network fails.
 pub async fn list_peers(context: &CommandContext) -> Result<()> {
     match context.node().network.get_connected_peers().await {
         Ok(peers) => {

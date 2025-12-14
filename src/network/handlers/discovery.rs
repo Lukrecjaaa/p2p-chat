@@ -1,3 +1,4 @@
+//! This module contains the handlers for discovery-related network events.
 use super::super::NetworkLayer;
 use crate::net::discovery::DiscoveryBehaviourEvent;
 use crate::sync::{DhtQueryResult, SyncEvent};
@@ -7,6 +8,18 @@ use std::collections::HashSet;
 use tracing::{debug, error, info, trace};
 
 impl NetworkLayer {
+    /// Handles an event from the `DiscoveryBehaviour`.
+    ///
+    /// This function is called when an event is received from the `DiscoveryBehaviour`.
+    /// It dispatches the event to the appropriate handler.
+    ///
+    /// # Arguments
+    ///
+    /// * `event` - The `DiscoveryBehaviourEvent` to handle.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if handling the event fails.
     pub(super) async fn handle_discovery_event(
         &mut self,
         event: DiscoveryBehaviourEvent,
@@ -50,6 +63,7 @@ impl NetworkLayer {
         Ok(())
     }
 
+    /// Handles a Kademlia event.
     async fn handle_kademlia_event(&mut self, event: kad::Event) -> Result<()> {
         match event {
             kad::Event::OutboundQueryProgressed { id, result, .. } => match result {

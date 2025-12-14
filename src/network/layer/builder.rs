@@ -1,3 +1,4 @@
+//! This module contains the builder logic for the `NetworkLayer`.
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -17,6 +18,18 @@ use super::super::message::NetworkCommand;
 use super::NetworkLayer;
 
 impl NetworkLayer {
+    /// Creates a new `NetworkLayer` and `NetworkHandle`.
+    ///
+    /// # Arguments
+    ///
+    /// * `identity` - The identity of the local node.
+    /// * `listen_addr` - The address to listen on for incoming connections.
+    /// * `is_mailbox` - Whether the node is a mailbox node.
+    /// * `bootstrap_nodes` - A list of bootstrap nodes to connect to.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the network layer cannot be created.
     pub fn new(
         identity: Arc<Identity>,
         listen_addr: Multiaddr,
@@ -26,6 +39,19 @@ impl NetworkLayer {
         Self::new_with_mailbox_storage(identity, listen_addr, is_mailbox, None, bootstrap_nodes)
     }
 
+    /// Creates a new `NetworkLayer` and `NetworkHandle` with optional mailbox storage.
+    ///
+    /// # Arguments
+    ///
+    /// * `identity` - The identity of the local node.
+    /// * `listen_addr` - The address to listen on for incoming connections.
+    /// * `is_mailbox` - Whether the node is a mailbox node.
+    /// * `mailbox_storage` - The storage for the mailbox, if this is a mailbox node.
+    /// * `bootstrap_nodes` - A list of bootstrap nodes to connect to.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if the network layer cannot be created.
     pub fn new_with_mailbox_storage(
         identity: Arc<Identity>,
         listen_addr: Multiaddr,

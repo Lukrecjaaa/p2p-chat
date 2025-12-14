@@ -1,3 +1,4 @@
+//! This module contains the command handler for displaying chat history.
 use anyhow::Result;
 use chrono::{DateTime, Local, Utc};
 use libp2p::PeerId;
@@ -10,6 +11,18 @@ use super::super::resolver::resolve_peer_id;
 const DEFAULT_HISTORY_LIMIT: usize = 20;
 const MAX_HISTORY_LIMIT: usize = 1000;
 
+/// Displays the message history for a given peer.
+///
+/// Usage: `history <peer_id_or_nickname> [message_count]`
+///
+/// # Arguments
+///
+/// * `parts` - A slice of strings representing the command arguments.
+/// * `context` - The `CommandContext` providing access to the application's state and node.
+///
+/// # Errors
+///
+/// This function returns an error if retrieving the message history fails.
 pub async fn show_history(parts: &[&str], context: &CommandContext) -> Result<()> {
     if parts.len() < 2 || parts.len() > 3 {
         context.emit_chat("Usage: history <peer_id_or_nickname> [message_count]");
@@ -72,6 +85,15 @@ pub async fn show_history(parts: &[&str], context: &CommandContext) -> Result<()
     Ok(())
 }
 
+/// Parses the message limit argument.
+///
+/// # Arguments
+///
+/// * `raw` - An `Option` containing the raw string value of the limit.
+///
+/// # Returns
+///
+/// A `Result` containing the parsed `usize` limit or an error message.
 fn parse_limit(raw: Option<&&str>) -> Result<usize, String> {
     match raw {
         None => Ok(DEFAULT_HISTORY_LIMIT),
@@ -82,6 +104,15 @@ fn parse_limit(raw: Option<&&str>) -> Result<usize, String> {
     }
 }
 
+/// Formats a Unix timestamp into a human-readable string.
+///
+/// # Arguments
+///
+/// * `timestamp_ms` - The Unix timestamp in milliseconds.
+///
+/// # Returns
+///
+/// A formatted string representing the timestamp.
 fn format_timestamp(timestamp_ms: i64) -> String {
     DateTime::<Utc>::from_timestamp_millis(timestamp_ms)
         .map(|dt| {
@@ -92,6 +123,16 @@ fn format_timestamp(timestamp_ms: i64) -> String {
         .unwrap_or_else(|| "Invalid timestamp".to_string())
 }
 
+/// Formats the direction of a message (sent or received).
+///
+/// # Arguments
+///
+/// * `msg` - The `Message` to format.
+/// * `context` - The `CommandContext` for looking up peer labels.
+///
+/// # Returns
+///
+/// A formatted string indicating the message direction and peer label.
 async fn format_direction(msg: &Message, context: &CommandContext) -> String {
     if msg.sender == context.node().identity.peer_id {
         let label = lookup_peer_label(msg.recipient, context).await;
@@ -102,6 +143,16 @@ async fn format_direction(msg: &Message, context: &CommandContext) -> String {
     }
 }
 
+/// Looks up a peer's label (nickname or short Peer ID).
+///
+/// # Arguments
+///
+/// * `peer_id` - The `PeerId` to look up.
+/// * `context` - The `CommandContext` for accessing friend information.
+///
+/// # Returns
+///
+/// A string representing the peer's label.
 async fn lookup_peer_label(peer_id: PeerId, context: &CommandContext) -> String {
     match context
         .node()
@@ -116,6 +167,15 @@ async fn lookup_peer_label(peer_id: PeerId, context: &CommandContext) -> String 
     }
 }
 
+/// Returns a shortened string representation of a `PeerId`.
+///
+/// # Arguments
+///
+/// * `peer_id` - The `PeerId` to shorten.
+///
+/// # Returns
+///
+/// A shortened string of the `PeerId`.
 fn short_peer(peer_id: PeerId) -> String {
     let peer_str = peer_id.to_string();
     if peer_str.len() > 8 {
@@ -125,6 +185,16 @@ fn short_peer(peer_id: PeerId) -> String {
     }
 }
 
+/// Decrypts the content of a message.
+///
+/// # Arguments
+///
+/// * `msg` - The `Message` whose content to decrypt.
+/// * `context` - The `CommandContext` for accessing identity and friend information.
+///
+/// # Returns
+///
+/// A string containing the decrypted message content, or an error message if decryption fails.
 async fn decrypt_content(msg: &Message, context: &CommandContext) -> String {
     let other_pubkey = if msg.sender == context.node().identity.peer_id {
         context

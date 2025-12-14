@@ -1,4 +1,17 @@
+/**
+ * @file StatusPanel.vue
+ * @brief This component provides a draggable window that displays real-time
+ * system status information. It shows metrics like the number of connected peers,
+ * known mailboxes, and pending messages, with periodic updates to keep the
+ * information current.
+ */
 <template>
+  <!--
+    @component StatusPanel
+    @description A draggable window component that displays real-time system status information,
+    including connected peers, known mailboxes, and pending messages.
+    The data is refreshed periodically.
+  -->
   <DraggableWindow
     :initial-x="400"
     :initial-y="50"
@@ -6,10 +19,13 @@
     @close="$emit('close')"
   >
     <template #title>
+      <!-- @element title-icon - Icon displayed in the panel's title bar. -->
       <img src="/connected-peers.ico" alt="" class="title-icon" />
       <span>System Status</span>
     </template>
+    <!-- @section status-content - Displays various system metrics. -->
     <div v-if="status" class="status-content">
+      <!-- @element connected-peers-item - Displays the number of connected peers. -->
       <div class="status-item">
         <div class="status-icon">
           <img src="/connected-peers.ico" alt="Connected Peers" />
@@ -19,6 +35,7 @@
           <div class="status-value">{{ status.connected_peers }}</div>
         </div>
       </div>
+      <!-- @element known-mailboxes-item - Displays the number of known mailboxes. -->
       <div class="status-item">
         <div class="status-icon">
           <img src="/known-mailboxes.ico" alt="Known Mailboxes" />
@@ -28,6 +45,7 @@
           <div class="status-value">{{ status.known_mailboxes }}</div>
         </div>
       </div>
+      <!-- @element pending-messages-item - Displays the number of pending messages. -->
       <div class="status-item">
         <div class="status-icon">
           <img src="/pending-messages.ico" alt="Pending Messages" />
@@ -38,6 +56,7 @@
         </div>
       </div>
     </div>
+    <!-- @element status-loading - Displays a loading message if status data is not yet available. -->
     <div v-else class="status-loading">Loading...</div>
   </DraggableWindow>
 </template>
@@ -47,17 +66,40 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { getSystemStatus, type SystemStatus } from '@/api/client'
 import DraggableWindow from './DraggableWindow.vue'
 
+/**
+ * @props
+ * @property {boolean} visible - Controls the visibility of the status panel.
+ */
 defineProps<{
   visible: boolean
 }>()
 
+/**
+ * @emits
+ * @event close - Emitted when the status panel is requested to be closed.
+ */
 defineEmits<{
   close: []
 }>()
 
+/**
+ * Reactive state to hold the fetched system status data.
+ * @type {Ref<SystemStatus | null>}
+ */
 const status = ref<SystemStatus | null>(null)
+/**
+ * Stores the ID of the interval timer used for periodic status updates.
+ * @type {number | null}
+ */
 let intervalId: number | null = null
 
+/**
+ * Fetches the current system status from the API and updates the `status` reactive variable.
+ * Logs an error if the fetch operation fails.
+ * @async
+ * @function fetchStatus
+ * @returns {Promise<void>}
+ */
 async function fetchStatus() {
   try {
     status.value = await getSystemStatus()
@@ -66,12 +108,22 @@ async function fetchStatus() {
   }
 }
 
+/**
+ * Lifecycle hook: Called after the component has mounted.
+ * Initiates the first status fetch and sets up a periodic refresh interval.
+ * @function onMounted
+ */
 onMounted(() => {
   fetchStatus()
-  // Update every 10 seconds
+  // Update system status every 10 seconds
   intervalId = window.setInterval(fetchStatus, 10000)
 })
 
+/**
+ * Lifecycle hook: Called before the component unmounts.
+ * Clears the periodic status refresh interval to prevent memory leaks.
+ * @function onUnmounted
+ */
 onUnmounted(() => {
   if (intervalId !== null) {
     clearInterval(intervalId)

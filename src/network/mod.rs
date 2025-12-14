@@ -1,3 +1,7 @@
+//! This module contains the networking layer of the application.
+//!
+//! It is responsible for creating and managing the `libp2p` `Swarm`, and for
+//! handling all network events and commands.
 mod behaviour;
 mod commands;
 mod handle;
