@@ -17,7 +17,7 @@
     <div class="title-bar">
       <div class="title-bar-text">
         <!-- @element titlebar-icon - Icon displayed in the title bar. -->
-        <img src="/conversation-select.ico" alt="" class="titlebar-icon" />
+        <img src="/conversation-select.png" alt="" class="titlebar-icon" />
         p2p-chat
       </div>
     </div>
@@ -71,7 +71,7 @@
       <!-- @section Conversations Header -->
       <div class="friends-header">
         <!-- @element folder-icon - Icon for the conversations header. -->
-        <img src="/friends-folder.ico" alt="" class="folder-icon" />
+        <img src="/friends-folder.png" alt="" class="folder-icon" />
         <span>Conversations</span>
       </div>
 
@@ -104,7 +104,7 @@
               <!-- @element status-icon - Displays online/offline status icon for the conversation partner. -->
               <img
                 class="status-icon"
-                :src="conv.online ? '/status-online.ico' : '/status-offline.ico'"
+                :src="conv.online ? '/status-online.png' : '/status-offline.png'"
                 :alt="conv.online ? 'Online' : 'Offline'"
               />
             </td>
@@ -386,7 +386,7 @@ onUnmounted(() => {
   border: 1px solid #ccc;
   border-radius: 3px;
   font-size: 12px;
-  background-image: url('/search-icon.ico');
+  background-image: url('/search-icon.png');
   background-repeat: no-repeat;
   background-position: right 6px center;
   background-size: 16px 16px;

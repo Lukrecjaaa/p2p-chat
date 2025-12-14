@@ -20,7 +20,7 @@
   >
     <template #title>
       <!-- @element title-icon - Icon displayed in the panel's title bar. -->
-      <img src="/connected-peers.ico" alt="" class="title-icon" />
+      <img src="/connected-peers.png" alt="" class="title-icon" />
       <span>System Status</span>
     </template>
     <!-- @section status-content - Displays various system metrics. -->
@@ -28,7 +28,7 @@
       <!-- @element connected-peers-item - Displays the number of connected peers. -->
       <div class="status-item">
         <div class="status-icon">
-          <img src="/connected-peers.ico" alt="Connected Peers" />
+          <img src="/connected-peers.png" alt="Connected Peers" />
         </div>
         <div class="status-info">
           <div class="status-label">Connected Peers</div>
@@ -38,7 +38,7 @@
       <!-- @element known-mailboxes-item - Displays the number of known mailboxes. -->
       <div class="status-item">
         <div class="status-icon">
-          <img src="/known-mailboxes.ico" alt="Known Mailboxes" />
+          <img src="/known-mailboxes.png" alt="Known Mailboxes" />
         </div>
         <div class="status-info">
           <div class="status-label">Known Mailboxes</div>
@@ -48,7 +48,7 @@
       <!-- @element pending-messages-item - Displays the number of pending messages. -->
       <div class="status-item">
         <div class="status-icon">
-          <img src="/pending-messages.ico" alt="Pending Messages" />
+          <img src="/pending-messages.png" alt="Pending Messages" />
         </div>
         <div class="status-info">
           <div class="status-label">Pending Messages</div>

@@ -18,7 +18,7 @@
   >
     <template #title>
       <!-- @element title-icon - Icon displayed in the panel's title bar. -->
-      <img src="/user-info.ico" alt="" class="title-icon" />
+      <img src="/user-info.png" alt="" class="title-icon" />
       <span>Your Info</span>
     </template>
     <!-- @section identity-info - Displays user's Peer ID and Public Key if available. -->
@@ -31,7 +31,7 @@
           <input type="text" :value="identity.peer_id" readonly />
           <!-- @element copy-peer-id-button - Button to copy Peer ID to clipboard. -->
           <button @click="copyToClipboard(identity.peer_id)" title="Copy">
-            <img src="/copy-icon.ico" alt="Copy" class="copy-icon" />
+            <img src="/copy-icon.png" alt="Copy" class="copy-icon" />
           </button>
         </div>
       </div>
@@ -43,7 +43,7 @@
           <input type="text" :value="truncateKey(identity.hpke_public_key)" readonly />
           <!-- @element copy-public-key-button - Button to copy Public Key to clipboard. -->
           <button @click="copyToClipboard(identity.hpke_public_key)" title="Copy">
-            <img src="/copy-icon.ico" alt="Copy" class="copy-icon" />
+            <img src="/copy-icon.png" alt="Copy" class="copy-icon" />
           </button>
         </div>
       </div>

@@ -16,7 +16,7 @@
     <!-- @section Empty State -->
     <div v-if="!conversation" class="empty-state">
       <div class="empty-icon">
-        <img src="/conversation-select.ico" alt="" />
+        <img src="/conversation-select.png" alt="" />
       </div>
       <h3>Select a conversation</h3>
       <p>Choose a chat from the list to start messaging</p>
@@ -118,7 +118,7 @@
           />
           <!-- @element send-button - Button to send the typed message. -->
           <button type="submit" :disabled="!messageText.trim() || sending" class="send-button">
-            <img src="/send-button.ico" alt="" class="send-icon" />
+            <img src="/send-button.png" alt="" class="send-icon" />
             Send
           </button>
         </form>

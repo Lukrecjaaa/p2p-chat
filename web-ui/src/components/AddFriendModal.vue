@@ -21,7 +21,7 @@
   >
     <template #title>
       <!-- @element title-icon - Icon displayed in the modal title -->
-      <img src="/friends-folder.ico" alt="" class="title-icon" />
+      <img src="/friends-folder.png" alt="" class="title-icon" />
       <!-- @element title-text - Text displayed in the modal title -->
       <span>Add Friend</span>
     </template>
@@ -63,7 +63,7 @@
       </fieldset>
       <!-- @element error-message - Displays error messages during friend addition -->
       <div v-if="error" class="error-message">
-        <img src="/status-offline.ico" alt="" class="error-icon" />
+        <img src="/status-offline.png" alt="" class="error-icon" />
         {{ error }}
       </div>
       <!-- @element modal-actions - Contains action buttons for the modal -->
