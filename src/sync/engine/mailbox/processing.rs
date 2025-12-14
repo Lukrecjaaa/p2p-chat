@@ -120,14 +120,12 @@ impl SyncEngine {
             &encrypted_msg.encrypted_content,
         )?;
 
-        let plaintext_string = String::from_utf8(plaintext_content)?;
-
         Ok(Message {
             id: encrypted_msg.id,
             sender: encrypted_msg.sender,
             recipient: self.identity.peer_id, // Our peer_id is the recipient
             timestamp: encrypted_msg.timestamp,
-            content: plaintext_string.into_bytes(),
+            content: plaintext_content,
             nonce: encrypted_msg.nonce,
             delivery_status: DeliveryStatus::Delivered, // Mark as delivered upon processing
         })
