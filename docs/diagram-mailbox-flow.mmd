@@ -1,0 +1,22 @@
+sequenceDiagram
+    participant A as Klient A
+    participant SA as SyncEngine A
+    participant NLA as NetworkLayer A
+    participant MB as MailboxNode
+    participant NLB as NetworkLayer B
+    participant SB as SyncEngine B
+    participant B as Klient B
+
+    A->>SA: wiadomość do B (offline)
+    SA->>NLA: send_chat_request() (do mailboxu)
+    NLA->>MB: zapis wiadomości
+    MB-->>NLA: potwierdzenie zapisu
+    SA-->>A: status "przechowywana w mailbox" 
+
+    note over MB: B pojawia się online później
+
+    SB->>NLB: zapytanie o wiadomości z mailboxów
+    NLB->>MB: pobierz oczekujące wiadomości
+    MB-->>NLB: wiadomości dla B
+    NLB-->>SB: dostarczone wiadomości
+    SB-->>B: nowe wiadomości w historii

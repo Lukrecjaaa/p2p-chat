@@ -1,0 +1,136 @@
+\documentclass[a4paper,12pt]{article}
+
+\usepackage{newtxtext,newtxmath}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[polish]{babel}
+
+\usepackage{geometry}
+\geometry{left=3cm, right=3cm, top=3cm, bottom=3cm, includeheadfoot}
+
+\renewcommand{\baselinestretch}{1.5}
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0pt}
+\raggedbottom
+\emergencystretch=2em
+
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{url}
+
+\begin{document}
+
+\begin{center}
+    \textbf{Załącznik 5. Omówienie pliku \texttt{Cargo.toml} projektu \texttt{p2p-chat}}
+\end{center}
+
+\section*{1. Struktura pliku \texttt{Cargo.toml}}
+
+Plik \texttt{Cargo.toml} stanowi centralny plik konfiguracyjny projektu w ekosystemie Rust. Określa podstawowe metadane pakietu (nazwa, wersja, edycja języka), a także pełną listę zależności zewnętrznych wraz z wymaganymi wersjami oraz włączonymi funkcjami (\textit{features}). W projekcie \texttt{p2p-chat} plik ten ma charakter monolityczny -- definiuje pojedynczy pakiet binarny odpowiedzialny zarówno za logikę węzła sieci P2P, jak i wbudowany serwer HTTP z interfejsem webowym.
+
+\section*{2. Sekcja \texttt{[package]}}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{name = "p2p-chat"} &
+Nazwa pakietu wskazuje na główny cel projektu, którym jest implementacja komunikatora typu \textit{peer-to-peer}. Nazwa ta jest wykorzystywana m.in.\ przy budowaniu, dystrybucji oraz w katalogu zależności ekosystemu Rust. \\
+\texttt{version = "0.1.0"} &
+Wersja pakietu w formacie semantycznym, odzwierciedlająca wczesny etap rozwoju (wersja \texttt{0.x}) oraz brak stabilnego API zewnętrznego. \\
+\texttt{edition = "2021"} &
+Deklaracja korzystania z edycji Rust 2021, umożliwiającej wykorzystanie najnowszych funkcji języka i usprawnień kompilatora, w tym uproszczonej obsługi modułów i nowszych konstrukcji składniowych. \\
+\end{longtable}
+
+\section*{3. Zależności sieciowe i asynchroniczne}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{libp2p = \{ version = "0.53", features = [...] \}} &
+Biblioteka implementująca stos protokołów \textit{peer-to-peer} wykorzystywany w projekcie. Włączone funkcje (\texttt{tcp}, \texttt{tokio}, \texttt{noise}, \texttt{yamux}, \texttt{mdns}, \texttt{kad}, \texttt{request-response}, \texttt{macros}, \texttt{serde}, \texttt{ping}) aktywują odpowiednio transport TCP, integrację z Tokio, szyfrowanie Noise, multipleksację strumieni, odkrywanie węzłów w sieci lokalnej, rozproszoną tablicę haszującą Kademlia, protokół żądanie--odpowiedź, wsparcie makr i serializacji oraz mechanizm \texttt{ping} do monitorowania żywotności połączeń. \\
+\texttt{tokio = \{ version = "1.0", features = ["full"] \}} &
+Asynchroniczne środowisko uruchomieniowe (\textit{runtime}) wykorzystywane do obsługi współbieżnych zadań sieciowych i dyskowych. Włączenie \texttt{"full"} aktywuje pełen zestaw komponentów Tokio (timery, kanały, gniazda sieciowe, itp.), co upraszcza implementację złożonych przepływów asynchronicznych. \\
+\texttt{futures = "0.3"} &
+Zestaw narzędzi do pracy z abstrakcjami \textit{Future} i strumieniami (\textit{Streams}), uzupełniający funkcjonalność Tokio i ułatwiający kompozycję operacji asynchronicznych. \\
+\texttt{getrandom = "0.2"} &
+Biblioteka zapewniająca jednolity interfejs do systemowych generatorów liczb losowych, wykorzystywana pośrednio m.in.\ przez mechanizmy kryptograficzne. \\
+\end{longtable}
+
+\section*{4. Zależności kryptograficzne i bezpieczeństwa}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{x25519-dalek = \{ version = "2.0", features = ["static\_secrets"] \}} &
+Implementacja operacji na krzywej eliptycznej Curve25519 wykorzystywana do realizacji wymiany kluczy X25519. Funkcja \texttt{static\_secrets} włącza obsługę długoterminowych sekretów, wykorzystywanych przy konstruowaniu tożsamości kryptograficznych użytkowników. \\
+\texttt{chacha20poly1305 = "0.10"} &
+Biblioteka implementująca szyfrowanie uwierzytelnione AEAD w wariancie ChaCha20-Poly1305, wykorzystywana do zapewnienia poufności i integralności treści wiadomości. \\
+\texttt{argon2 = "0.5"} &
+Implementacja funkcji Argon2 służącej do bezpiecznego wyprowadzania kluczy z haseł (KDF), wykorzystywana przy ochronie materiału kluczowego zapisywanego w magazynie. \\
+\texttt{sha2 = "0.10"} &
+Zestaw funkcji skrótu z rodziny SHA-2, używany do obliczania kryptograficznych skrótów danych (np.\ identyfikatorów, odcisków kluczy). \\
+\texttt{rand = "0.8"} &
+Ogólna biblioteka generowania liczb pseudolosowych, wykorzystywana przy generowaniu identyfikatorów, nonce'ów oraz innych losowych wartości. \\
+\texttt{rand\_core = \{ version = "0.6", features = ["getrandom"] \}} &
+Warstwa bazowa dla generatorów losowych, integrowana z \texttt{getrandom}; zapewnia spójne źródło entropii dla komponentów kryptograficznych. \\
+\texttt{base64 = "0.22"} &
+Biblioteka kodowania i dekodowania danych w formacie Base64, używana m.in.\ do reprezentacji binarnych kluczy w postaci tekstowej. \\
+\texttt{hex = "0.4"} &
+Obsługa reprezentacji danych w formacie szesnastkowym, przydatna do logowania i prezentacji odcisków kluczy oraz identyfikatorów. \\
+\end{longtable}
+
+\section*{5. Serializacja, identyfikatory i czas}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{serde = \{ version = "1.0", features = ["derive"] \}} &
+Główna biblioteka serializacji i deserializacji struktur danych, wykorzystywana w całym projekcie do zapisu konfiguracji, komunikatów sieciowych oraz danych w bazie. Funkcja \texttt{derive} umożliwia automatyczne generowanie implementacji \texttt{Serialize} i \texttt{Deserialize}. \\
+\texttt{serde\_json = "1.0"} &
+Obsługa formatu JSON, wykorzystywana m.in.\ do wymiany danych w interfejsie HTTP oraz przy zapisie konfiguracji. \\
+\texttt{uuid = \{ version = "1.0", features = ["v4", "serde"] \}} &
+Biblioteka generująca losowe identyfikatory UUID w wersji 4, wykorzystywane do jednoznacznego oznaczania wiadomości i innych obiektów domenowych. Włączona integracja z \texttt{serde} umożliwia wygodną serializację. \\
+\texttt{chrono = \{ version = "0.4", features = ["serde"] \}} &
+Biblioteka obsługi czasu i dat, używana do oznaczania znaczników czasowych wiadomości oraz innych zdarzeń, z możliwością bezpośredniej serializacji do formatów wymiany danych. \\
+\end{longtable}
+
+\section*{6. Interfejs linii poleceń, logowanie i obsługa błędów}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{clap = \{ version = "4.0", features = ["derive"] \}} &
+Biblioteka służąca do definiowania i parsowania argumentów linii poleceń. W projekcie wykorzystywana do konfiguracji trybu pracy aplikacji oraz parametrów takich jak porty nasłuchu. Funkcja \texttt{derive} pozwala deklaratywnie opisać strukturę argumentów. \\
+\texttt{tracing = "0.1"} &
+Nowoczesny system logowania i śledzenia zdarzeń, stosowany do rejestrowania informacji diagnostycznych w sposób strukturalny. \\
+\texttt{tracing-subscriber = \{ version = "0.3", features = ["env-filter"] \}} &
+Warstwa subskrybenta dla \texttt{tracing}, odpowiedzialna za formatowanie i wypisywanie logów. Funkcja \texttt{env-filter} pozwala kontrolować poziom logowania za pomocą zmiennych środowiskowych. \\
+\texttt{anyhow = "1.0"} &
+Biblioteka upraszczająca propagację błędów w kodzie aplikacyjnym poprzez ujednolicony typ błędu z obsługą kontekstu. Wykorzystywana wszędzie tam, gdzie istotniejsza jest ergonomia niż precyzyjna klasyfikacja błędów. \\
+\texttt{thiserror = "1.0"} &
+Biblioteka wspierająca definiowanie własnych typów błędów w sposób deklaratywny, z czytelnymi komunikatami i integracją z systemem \texttt{std::error::Error}. \\
+\texttt{colored = "2.0"} &
+Narzędzie do kolorowania tekstu w terminalu, wykorzystywane do zwiększenia czytelności komunikatów w interfejsie tekstowym i logach. \\
+\texttt{unicode-width = "0.1"} &
+Biblioteka obliczająca szerokość znaków Unicode, przydatna przy wyrównywaniu tekstu w interfejsie terminalowym, zwłaszcza w obecności znaków wielobajtowych. \\
+\end{longtable}
+
+\section*{7. Interfejs tekstowy (TUI) i obsługa terminala}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{rustyline = "14.0"} &
+Biblioteka dostarczająca funkcjonalność edycji linii poleceń z historią i skrótami klawiaturowymi, wykorzystywana w początkowych eksperymentach z interfejsem tekstowym. \\
+\texttt{reedline = "0.28"} &
+Nowocześniejsza biblioteka do obsługi linii poleceń w terminalu, oferująca m.in.\ lepsze wsparcie dla podpowiedzi, historii i pracy z kolorami. \\
+\texttt{crossterm = "0.27"} &
+Biblioteka do niskopoziomowej obsługi terminala w sposób przenośny między systemami, używana do realizacji interfejsu tekstowego opartego na TUI (rysowanie okien, obsługa klawiatury). \\
+\end{longtable}
+
+\section*{8. Warstwa webowa i serwer HTTP}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{axum = \{ version = "0.7", features = ["ws", "macros"] \}} &
+Lekki framework webowy wykorzystywany do implementacji serwera HTTP oraz obsługi WebSocketów. Funkcje \texttt{"ws"} i \texttt{"macros"} zapewniają wsparcie dla dwukierunkowej komunikacji w czasie rzeczywistym oraz deklaratywnego definiowania tras. \\
+\texttt{tower = "0.4"} &
+Biblioteka dostarczająca abstrakcje usług (\textit{Service}) i middleware, będąca fundamentem, na którym opiera się Axum. \\
+\texttt{tower-http = \{ version = "0.5", features = ["fs", "cors"] \}} &
+Zbiór komponentów HTTP takich jak serwowanie plików statycznych (\texttt{fs}) oraz obsługa nagłówków CORS, wykorzystywany do udostępniania zasobów interfejsu webowego i konfiguracji dostępu z przeglądarki. \\
+\texttt{rust-embed = "8.0"} &
+Biblioteka umożliwiająca dołączanie plików statycznych (np.\ zbudowanego frontendu Vue) bezpośrednio do pliku wykonywalnego, co ułatwia dystrybucję aplikacji bez dodatkowego katalogu z zasobami. \\
+\texttt{mime\_guess = "2.0"} &
+Narzędzie do zgadywania typu MIME na podstawie rozszerzenia pliku, wykorzystywane przy serwowaniu zasobów statycznych (HTML, CSS, JavaScript, grafiki) z wbudowanego serwera HTTP. \\
+\end{longtable}
+
+\end{document}
+

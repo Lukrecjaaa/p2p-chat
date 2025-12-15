@@ -1,0 +1,66 @@
+\documentclass[a4paper,12pt]{article}
+
+\usepackage{newtxtext,newtxmath}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[polish]{babel}
+
+\usepackage{geometry}
+\geometry{left=3cm, right=3cm, top=3cm, bottom=3cm, includeheadfoot}
+
+\renewcommand{\baselinestretch}{1.5}
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0pt}
+\raggedbottom
+\emergencystretch=2em
+
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+
+\begin{document}
+
+\begin{center}
+    \textbf{Załącznik 2. Zrzuty ekranu aplikacji \texttt{p2p-chat}}
+\end{center}
+
+\section*{1. Interfejs tekstowy (TUI)}
+
+Na rysunku~\ref{fig:tui} przedstawiono przykładowy widok interfejsu tekstowego aplikacji \texttt{p2p-chat}. Zrzut ekranu obejmuje jednoczesną pracę trzech węzłów uruchomionych w jednym terminalu:
+\begin{itemize}
+    \item po lewej stronie widoczny jest węzeł użytkownika pracujący w trybie podglądu logów, prezentujący zdarzenia sieciowe oraz komunikaty diagnostyczne;
+    \item w środkowym oknie pokazano tryb czatu (\texttt{ChatMode}) dla węzła klienta, obejmujący listę wiadomości oraz pole wprowadzania nowych komunikatów;
+    \item po prawej stronie widoczny jest węzeł pełniący rolę \textit{mailboxa}, odpowiedzialny za przechowywanie wiadomości dla nieobecnych uczestników.
+\end{itemize}
+
+Widok ten ilustruje sposób pracy systemu w środowisku terminalowym, w którym użytkownik ma równoczesny dostęp do historii rozmów, bieżących logów oraz informacji o pracy węzła \textit{mailbox}.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{tui-screenshot.png}
+    \caption{Interfejs tekstowy (TUI) z trzema węzłami: użytkownik w trybie logów, klient w trybie czatu oraz węzeł mailbox.}
+    \label{fig:tui}
+\end{figure}
+
+\section*{2. Interfejs webowy}
+
+Rysunek~\ref{fig:webui} przedstawia widok interfejsu webowego komunikatora \texttt{p2p-chat}. Na zrzucie ekranu widoczna jest aktywna konwersacja pomiędzy dwoma użytkownikami, prezentowana w oknie czatu wraz z przypisanymi kolorami oraz awatarami dopasowanymi do identyfikatorów \textit{PeerId}. Kolorystyka oraz grafiki awatarów są deterministycznie wyprowadzane z identyfikatora węzła, co ułatwia wizualne rozróżnianie rozmówców.
+
+W prawym obszarze interfejsu widoczne są dodatkowe okna:
+\begin{itemize}
+    \item \textbf{System Status} -- panel prezentujący bieżące informacje o stanie węzła, połączeniu z siecią P2P oraz działaniu modułów pomocniczych;
+    \item \textbf{Add Friend} -- okno umożliwiające dodanie nowego znajomego na podstawie jego identyfikatora, w tym klucza publicznego używanego do szyfrowania end-to-end;
+    \item \textbf{Your Info} -- panel wyświetlający dane lokalnego użytkownika, w szczególności identyfikator \textit{PeerId} oraz klucz publiczny wykorzystywany do nawiązywania bezpiecznych połączeń.
+    \end{itemize}
+
+Zrzut ekranu obrazuje docelowy sposób korzystania z aplikacji przez użytkownika końcowego -- komunikacja odbywa się w przeglądarce, natomiast logika sieciowa i kryptograficzna jest realizowana przez lokalny węzeł Rust uruchomiony w tle.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.95\textwidth]{web-ui-screenshot.png}
+    \caption{Interfejs webowy z aktywną konwersacją oraz otwartymi panelami System Status, Add Friend i Your Info.}
+    \label{fig:webui}
+\end{figure}
+
+\end{document}

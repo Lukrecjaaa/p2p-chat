@@ -1,0 +1,17 @@
+sequenceDiagram
+    participant T as Użytkownik (TUI)
+    participant UI as run_tui()
+    participant N as Node
+    participant S as SyncEngine
+    participant NL as NetworkLayer
+    participant P as Peer B
+
+    T->>UI: wpisuje wiadomość
+    UI->>N: UIAction::SendMessage
+    N->>S: dodaj do outbox
+    S->>NL: send_chat_request()
+    NL->>P: wiadomość zaszyfrowana
+    P-->>NL: potwierdzenie (DeliveryConfirmation)
+    NL-->>S: NetworkResponse::DeliveryStatus
+    S-->>N: aktualizacja statusu
+    N-->>UI: UiNotification::DeliveryStatusUpdate

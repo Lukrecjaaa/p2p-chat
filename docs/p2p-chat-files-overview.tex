@@ -1,0 +1,346 @@
+\documentclass[a4paper,12pt]{article}
+
+\usepackage{newtxtext,newtxmath}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[polish]{babel}
+
+\usepackage{geometry}
+\geometry{left=3cm, right=3cm, top=3cm, bottom=3cm, includeheadfoot}
+
+\renewcommand{\baselinestretch}{1.5}
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0pt}
+\raggedbottom
+\emergencystretch=2em
+
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{url}
+
+\begin{document}
+
+\begin{center}
+    \textbf{Załącznik 4. Struktura plików projektu \texttt{p2p-chat}}
+\end{center}
+
+\section*{1. Pliki w katalogu głównym}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{Cargo.toml} &
+Główny plik konfiguracyjny projektu w ekosystemie Rust, definiujący nazwę pakietu, metadane, zależności oraz konfigurację kompilacji aplikacji \texttt{p2p-chat}. \\
+\texttt{build.sh} &
+Skrypt powłoki automatyzujący proces budowy projektu: kompiluje interfejs webowy w katalogu \texttt{web-ui}, a następnie tworzy plik wykonywalny w języku Rust w trybie \texttt{release}. \\
+\texttt{dev-web.sh} &
+Skrypt uruchamiający środowisko programistyczne interfejsu webowego, uruchamiając serwer Vite i przekierowując żądania API do warstwy serwerowej napisanej w Ruście. \\
+\end{longtable}
+
+\section*{2. Moduły źródłowe backendu w katalogu \texttt{src}}
+
+\subsection*{2.1. Warstwa aplikacji (\texttt{src/app})}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{src/app/mod.rs} &
+Główny moduł warstwy aplikacyjnej odpowiedzialny za przygotowanie środowiska uruchomieniowego, wybór trybu pracy (klient lub \textit{mailbox}) oraz start głównych komponentów systemu. \\
+\texttt{src/app/args.rs} &
+Definicja oraz obsługa argumentów linii poleceń aplikacji, oparta na bibliotece \texttt{clap}, obejmująca m.in.\ wybór portów i trybu działania. \\
+\texttt{src/app/client.rs} &
+Logika uruchamiania aplikacji w trybie klienta: inicjalizacja warstwy sieciowej, magazynu danych, silnika synchronizacji, interfejsu tekstowego oraz serwera webowego. \\
+\texttt{src/app/mailbox.rs} &
+Implementacja trybu pracy węzła \textit{mailbox}, odpowiedzialnego za przyjmowanie, przechowywanie i udostępnianie wiadomości dla nieobecnych użytkowników. \\
+\texttt{src/app/setup.rs} &
+Procedury przygotowania aplikacji, w tym inicjalizacja bazy \texttt{sled}, odczyt lub generowanie tożsamości użytkownika oraz konfiguracja szyfrowania przechowywanych danych. \\
+\end{longtable}
+
+\subsection*{2.2. Interfejs CLI (\texttt{src/cli})}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{src/cli/mod.rs} &
+Główny moduł interfejsu linii poleceń, integrujący definicje komend z resztą aplikacji. \\
+\texttt{src/cli/commands.rs} &
+Definicje struktur komend CLI oraz głównej struktury \texttt{Node} reprezentującej rdzeń aplikacji, wykorzystywanej m.in.\ przez interfejs webowy do dostępu do stanu systemu. \\
+\end{longtable}
+
+\subsection*{2.3. Moduły kryptograficzne (\texttt{src/crypto})}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{src/crypto/mod.rs} &
+Punkt wejścia do warstwy kryptograficznej, eksportujący typy oraz funkcje używane w pozostałych częściach systemu. \\
+\texttt{src/crypto/identity.rs} &
+Reprezentacja tożsamości kryptograficznej użytkownika, obejmująca klucze długoterminowe, operacje podpisu oraz szyfrowania end-to-end. \\
+\texttt{src/crypto/hpke.rs} &
+Implementacja uproszczonego schematu hybrydowego szyfrowania w stylu HPKE, wykorzystywanego do bezpiecznego uzgadniania kluczy i szyfrowania wiadomości. \\
+\texttt{src/crypto/storage.rs} &
+Funkcje odpowiedzialne za szyfrowanie i deszyfrowanie danych przechowywanych w lokalnej bazie, w tym generowanie i obsługę klucza szyfrującego magazyn. \\
+\end{longtable}
+
+\subsection*{2.4. Logowanie (\texttt{src/logging})}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{src/logging/mod.rs} &
+Główny moduł konfiguracji logowania, integrujący kolektor logów z systemem \texttt{tracing}. \\
+\texttt{src/logging/buffer.rs} &
+Bufor w pamięci przechowujący ostatnie wpisy logów na potrzeby ich wyświetlania w interfejsie użytkownika. \\
+\texttt{src/logging/collector.rs} &
+Implementacja kolektora logów, który odbiera zdarzenia z systemu \texttt{tracing} i przekazuje je do bufora oraz interfejsu tekstowego. \\
+\end{longtable}
+
+\subsection*{2.5. Główne punkty wejścia (\texttt{src/main.rs}, \texttt{src/mailbox.rs})}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{src/main.rs} &
+Główna funkcja programu uruchamiająca aplikację \texttt{p2p-chat}, inicjalizująca asynchroniczne środowisko Tokio oraz delegująca start do modułu \texttt{app}. \\
+\texttt{src/mailbox.rs} &
+Dodatkowy punkt wejścia i logika wysokopoziomowa związana z obsługą węzła \textit{mailbox} w kontekście warstwy sieciowej i synchronizacji. \\
+\end{longtable}
+
+\subsection*{2.6. Warstwa sieciowa wysokiego poziomu (\texttt{src/net})}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{src/net/mod.rs} &
+Moduł agregujący funkcje wysokopoziomowej warstwy \texttt{net}, odpowiedzialnej za operacje czatu i interakcję z DHT. \\
+\texttt{src/net/chat.rs} &
+Funkcje związane z wysyłaniem i odbieraniem wiadomości czatu na poziomie logiki aplikacyjnej, w tym mapowanie wiadomości na komendy sieciowe. \\
+\texttt{src/net/discovery.rs} &
+Mechanizmy odkrywania innych węzłów w sieci P2P przy użyciu DHT i mDNS, wykorzystywane do utrzymywania listy znanych peerów. \\
+\texttt{src/net/mailbox.rs} &
+Operacje związane z komunikacją z węzłami \textit{mailbox}: przekazywanie wiadomości do przechowania oraz ich odbieranie przez klienta. \\
+\end{longtable}
+
+\subsection*{2.7. Niskopoziomowa warstwa sieciowa \texttt{libp2p} (\texttt{src/network})}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{src/network/mod.rs} &
+Główny moduł warstwy \texttt{network} oparty na bibliotece \texttt{libp2p}, definiujący publiczny interfejs \texttt{NetworkLayer} oraz typy zdarzeń sieciowych. \\
+\texttt{src/network/behaviour.rs} &
+Implementacja zachowania \texttt{libp2p Swarm} (\textit{behaviour}) integrującego protokoły Noise, Kademlia, mDNS oraz request-response w spójną logikę sieciową. \\
+\texttt{src/network/commands.rs} &
+Definicje komend kierowanych do warstwy sieciowej, takich jak wysyłanie wiadomości, zapytania o mailboxy czy aktualizacja informacji o peerach. \\
+\texttt{src/network/handle.rs} &
+Uchwyt (\textit{handle}) do komunikacji z warstwą sieciową z innych części aplikacji, umożliwiający asynchroniczne wysyłanie komend i odbiór odpowiedzi. \\
+\texttt{src/network/message.rs} &
+Definicje typów wiadomości i odpowiedzi wymienianych pomiędzy warstwą sieciową a pozostałymi komponentami, w tym serializowanych struktur protokołu aplikacyjnego. \\
+\texttt{src/network/handlers/mod.rs} &
+Moduł zbiorczy dla handlerów zdarzeń sieciowych, porządkujący obsługę różnych rodzajów zdarzeń pochodzących z \texttt{Swarm}. \\
+\texttt{src/network/handlers/chat.rs} &
+Obsługa zdarzeń związanych z wiadomościami czatu na poziomie \texttt{libp2p}, w tym przyjmowanie i dekodowanie danych od innych peerów. \\
+\texttt{src/network/handlers/discovery.rs} &
+Obsługa zdarzeń odkrywania peerów (m.in.\ z mDNS i DHT), aktualizująca lokalny widok topologii sieci. \\
+\texttt{src/network/handlers/mailbox.rs} &
+Handler odpowiedzialny za komunikację z węzłami \textit{mailbox} na poziomie protokołu sieciowego, w tym przyjmowanie zapytań oraz odpowiedzi. \\
+\texttt{src/network/handlers/swarm.rs} &
+Obsługa zdarzeń generowanych przez \texttt{Swarm} (takich jak nawiązanie lub utrata połączenia), koordynująca przepływ informacji w warstwie sieciowej. \\
+\texttt{src/network/layer/mod.rs} &
+Główny moduł implementujący \texttt{NetworkLayer}, łączący zachowanie \texttt{Swarm}, handlerów oraz kanały komunikacyjne z resztą systemu. \\
+\texttt{src/network/layer/builder.rs} &
+Funkcje budujące instancję warstwy sieciowej, konfigurujące parametry \texttt{libp2p}, transport, protokoły i początkową topologię. \\
+\texttt{src/network/layer/runtime.rs} &
+Kod zarządzający pętlą zdarzeń warstwy sieciowej, odpowiedzialny za uruchomienie i utrzymanie \texttt{Swarm} w osobnym zadaniu asynchronicznym. \\
+\texttt{src/network/layer/state.rs} &
+Struktury przechowujące stan wewnętrzny warstwy sieciowej, w tym informacje o połączeniach, znanych peerach oraz trwających zapytaniach. \\
+\texttt{src/network/layer/providers.rs} &
+Logika dotycząca obsługi dostawców usługi \textit{mailbox} w DHT, w tym ranking, metryki wydajności i wybór najlepszych węzłów. \\
+\end{longtable}
+
+\subsection*{2.8. Warstwa przechowywania danych (\texttt{src/storage})}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{src/storage/mod.rs} &
+Moduł agregujący interfejsy oraz implementacje magazynów danych opartych na bazie \texttt{sled}. \\
+\texttt{src/storage/friends.rs} &
+Magazyn przechowujący listę znajomych wraz z ich kluczami publicznymi używanymi do szyfrowania end-to-end. \\
+\texttt{src/storage/history.rs} &
+Magazyn historii wiadomości, odpowiedzialny za zapisywanie, odczyt i filtrowanie konwersacji między peerami. \\
+\texttt{src/storage/outbox.rs} &
+Magazyn wiadomości oczekujących na wysłanie (\textit{outbox}), z którego korzysta silnik synchronizacji przy próbach dostarczenia wiadomości. \\
+\texttt{src/storage/seen.rs} &
+Mechanizm śledzenia wiadomości oznaczonych jako przeczytane, wykorzystywany do aktualizacji statusów dostarczenia i odczytu. \\
+\texttt{src/storage/known\_mailboxes.rs} &
+Magazyn znanych węzłów \textit{mailbox} wraz z metrykami jakości, służący do wyboru dostawców dla nowych wiadomości. \\
+\texttt{src/storage/mailbox/mod.rs} &
+Moduł logiczny odpowiadający za lokalne przechowywanie wiadomości w roli \textit{mailbox}, w tym struktury danych i interfejsy dostępu. \\
+\texttt{src/storage/mailbox/operations.rs} &
+Implementacja operacji na lokalnym magazynie \textit{mailbox}: zapisywanie, odczytywanie i usuwanie wiadomości przechowywanych dla innych użytkowników. \\
+\end{longtable}
+
+\subsection*{2.9. Silnik synchronizacji (\texttt{src/sync})}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{src/sync/mod.rs} &
+Główny moduł silnika synchronizacji odpowiedzialny za cykliczne próby dostarczenia wiadomości, odświeżanie informacji o mailboxach oraz reagowanie na zdarzenia sieciowe. \\
+\texttt{src/sync/backoff.rs} &
+Implementacja strategii wycofania (\textit{backoff}) dla ponawiania prób komunikacji z niedostępnymi węzłami, ograniczająca nadmierne obciążenie sieci. \\
+\texttt{src/sync/retry.rs} &
+Funkcje wspierające ponawianie operacji sieciowych i zapisu, uwzględniające politykę błędów i limity prób. \\
+\texttt{src/sync/engine/mod.rs} &
+Główny moduł silnika, definiujący strukturę \texttt{SyncEngine} oraz jego publiczny interfejs wykorzystywany przez resztę aplikacji. \\
+\texttt{src/sync/engine/events.rs} &
+Definicje zdarzeń wewnętrznych silnika synchronizacji, które inicjują operacje takie jak natychmiastowe wysłanie wiadomości czy ponowne odkrywanie mailboxów. \\
+\texttt{src/sync/engine/performance.rs} &
+Zbieranie i aktualizacja metryk wydajności dotyczących dostawców \textit{mailbox}, wykorzystywanych przy wyliczaniu ich lokalnego rankingu. \\
+\end{longtable}
+
+\subsection*{2.10. Typy wspólne (\texttt{src/types.rs})}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{src/types.rs} &
+Definicje wspólnych typów domenowych, takich jak struktura wiadomości, statusy dostarczenia oraz aliasy typów wykorzystywane w różnych modułach systemu. \\
+\end{longtable}
+
+\subsection*{2.11. Interfejs tekstowy (TUI) (\texttt{src/ui})}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{src/ui/mod.rs} &
+Główny moduł interfejsu tekstowego, eksportujący funkcję uruchamiającą TUI oraz podstawowe typy reprezentujące zdarzenia i stany UI. \\
+\texttt{src/ui/action.rs} &
+Definicje akcji użytkownika wykonywanych w interfejsie tekstowym, takich jak wysłanie wiadomości czy zmiana rozmówcy. \\
+\texttt{src/ui/completers.rs} &
+Logika podpowiedzi (\textit{completion}) dla wprowadzanych komend i identyfikatorów peerów, ułatwiająca obsługę z klawiatury. \\
+\texttt{src/ui/event.rs} &
+Definicja zdarzeń interfejsu użytkownika, łączących wejście z klawiatury z reakcjami aplikacji. \\
+\texttt{src/ui/log\_entry.rs} &
+Struktury reprezentujące pojedyncze wpisy logów wyświetlane w trybie podglądu logów. \\
+\texttt{src/ui/mode.rs} &
+Definicja dostępnych trybów interfejsu (m.in.\ tryb czatu i tryb logów) oraz logika przełączania się między nimi. \\
+\texttt{src/ui/chat\_mode/mod.rs} &
+Główny moduł trybu czatu, zarządzający historią wpisów użytkownika, podpowiedziami oraz bieżącym stanem pola wprowadzania. \\
+\texttt{src/ui/chat\_mode/input.rs} &
+Obsługa wejścia użytkownika w trybie czatu, w tym nawigacja po historii i akceptowanie podpowiedzi. \\
+\texttt{src/ui/chat\_mode/render.rs} &
+Renderowanie widoku czatu w terminalu, obejmujące listę wiadomości, pole wprowadzania oraz podpowiedzi. \\
+\texttt{src/ui/log\_mode/mod.rs} &
+Główny moduł trybu logów, odpowiedzialny za prezentację zebranych wpisów logów w interfejsie tekstowym. \\
+\texttt{src/ui/log\_mode/render.rs} &
+Implementacja renderowania widoku logów, w tym przewijania i formatowania wpisów. \\
+\texttt{src/ui/runner/mod.rs} &
+Pętla główna interfejsu TUI, która spina odczyt zdarzeń, aktualizację stanu oraz renderowanie widoku. \\
+\texttt{src/ui/state/mod.rs} &
+Główne struktury stanu interfejsu użytkownika, agregujące informacje o aktualnym widoku, zaznaczeniach i historii. \\
+\texttt{src/ui/state/chat.rs} &
+Stan specyficzny dla trybu czatu, obejmujący m.in.\ aktualnie wybraną konwersację oraz bufor wprowadzanych wiadomości. \\
+\texttt{src/ui/state/input.rs} &
+Stan pola wprowadzania tekstu, w tym bieżącą zawartość i kursor edycji. \\
+\texttt{src/ui/state/logs.rs} &
+Stan widoku logów, obejmujący m.in.\ pozycję przewijania oraz filtrację wpisów. \\
+\texttt{src/ui/terminal/mod.rs} &
+Moduł odpowiedzialny za integrację z biblioteką terminalową, inicjalizację trybu graficznego TUI oraz odtwarzanie ustawień po zakończeniu pracy. \\
+\texttt{src/ui/terminal/events.rs} &
+Obsługa zdarzeń terminalowych, takich jak naciśnięcia klawiszy czy zmiana rozmiaru okna. \\
+\texttt{src/ui/terminal/render.rs} &
+Funkcje renderujące główny układ interfejsu w terminalu, w tym okna czatu i panel logów. \\
+\texttt{src/ui/terminal/controller.rs} &
+Warstwa kontrolera łącząca zdarzenia użytkownika z odpowiednimi akcjami i aktualizacjami stanu interfejsu. \\
+\texttt{src/ui/terminal/lifecycle.rs} &
+Procedury cyklu życia interfejsu terminalowego, odpowiadające za poprawną inicjalizację oraz sprzątanie zasobów. \\
+\end{longtable}
+
+\subsection*{2.12. Warstwa webowa backendu (\texttt{src/web})}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{src/web/mod.rs} &
+Główny moduł serwera webowego opartego na frameworku \texttt{Axum}, odpowiedzialny za uruchomienie serwera HTTP, integrację API, WebSocketów oraz serwowanie zasobów statycznych. \\
+\texttt{src/web/api.rs} &
+Implementacja REST API udostępnianego interfejsowi webowemu, obejmująca m.in.\ pobieranie listy znajomych, historii rozmów oraz statusu systemu. \\
+\texttt{src/web/websocket.rs} &
+Obsługa połączeń WebSocket, wykorzystywana do przesyłania powiadomień o nowych wiadomościach i zmianach stanu w czasie rzeczywistym do interfejsu przeglądarkowego. \\
+\end{longtable}
+
+\section*{3. Pliki źródłowe interfejsu webowego (\texttt{web-ui})}
+
+\subsection*{3.1. Konfiguracja i zależności}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{web-ui/package.json} &
+Główny plik konfiguracyjny projektu frontendowego, definiujący zależności NPM, skrypty uruchomieniowe oraz metadane aplikacji. \\
+\texttt{web-ui/package-lock.json} &
+Zablokowany opis drzewa zależności NPM zapewniający powtarzalność instalacji bibliotek frontendowych. \\
+\texttt{web-ui/env.d.ts} &
+Deklaracje typów TypeScript dla zmiennych środowiskowych oraz rozszerzeń używanych przez narzędzia budujące projekt. \\
+\texttt{web-ui/tsconfig.json} &
+Główny plik konfiguracji kompilatora TypeScript dla całego projektu frontendowego. \\
+\texttt{web-ui/tsconfig.app.json} &
+Konfiguracja TypeScript specyficzna dla kodu aplikacji (bez testów i narzędzi pomocniczych). \\
+\texttt{web-ui/tsconfig.node.json} &
+Konfiguracja TypeScript dla plików uruchamianych w środowisku Node.js (np.\ skrypty budujące aplikację). \\
+\texttt{web-ui/vite.config.ts} &
+Konfiguracja bundlera Vite odpowiedzialnego za budowanie i serwowanie aplikacji Vue. \\
+\end{longtable}
+
+\subsection*{3.2. Główne moduły aplikacji}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{web-ui/src/main.ts} &
+Główny punkt wejścia aplikacji Vue, inicjalizujący instancję aplikacji, konfigurujący router oraz magazyn stanu Pinia, a następnie montujący aplikację w drzewie DOM. \\
+\texttt{web-ui/src/App.vue} &
+Komponent korzeniowy aplikacji Vue, renderujący bieżący widok na podstawie konfiguracji routera. \\
+\texttt{web-ui/src/router/index.ts} &
+Konfiguracja nawigacji po stronie klienta (Vue Router), definiująca dostępne ścieżki i przypisane im widoki. \\
+\texttt{web-ui/src/peerBranding.ts} &
+Stałe i funkcje związane z wyświetlaniem nazwy oraz identyfikatora lokalnego węzła w interfejsie użytkownika. \\
+\end{longtable}
+
+\subsection*{3.3. Warstwa API i komunikacja z backendem}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{web-ui/src/api/types.ts} &
+Definicje typów TypeScript odzwierciedlających struktury danych zwracane przez backend (m.in.\ wiadomości, znajomi, status systemu). \\
+\texttt{web-ui/src/api/client.ts} &
+Klient HTTP odpowiedzialny za wywoływanie punktów końcowych (endpointów) REST API warstwy serwerowej, w tym obsługę błędów i mapowanie odpowiedzi na typy domenowe. \\
+\texttt{web-ui/src/api/websocket.ts} &
+Moduł zarządzający połączeniem WebSocket z backendem, wykorzystywany do odbierania w czasie rzeczywistym informacji o nowych wiadomościach i zmianach stanu. \\
+\end{longtable}
+
+\subsection*{3.4. Magazyny stanu (stores)}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{web-ui/src/stores/identity.ts} &
+Magazyn stanu zawierający informacje o lokalnej tożsamości użytkownika, wykorzystywany do prezentowania danych w UI oraz wysyłania żądań do backendu. \\
+\texttt{web-ui/src/stores/friends.ts} &
+Magazyn stanu listy znajomych oraz ich statusów (online/offline), synchronizowany z backendem. \\
+\texttt{web-ui/src/stores/conversations.ts} &
+Magazyn stanu konwersacji i wiadomości, odpowiedzialny za lokalne buforowanie treści czatu wyświetlanej w interfejsie. \\
+\end{longtable}
+
+\subsection*{3.5. Widoki (\texttt{web-ui/src/views})}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{MessengerView.vue} &
+Główny widok komunikatora prezentujący układ interfejsu aplikacji: listę rozmów, okno czatu oraz panele informacyjne. \\
+\end{longtable}
+
+\subsection*{3.6. Komponenty (\texttt{web-ui/src/components})}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{DraggableWindow.vue} &
+Komponent prezentujący okno w stylu klasycznych interfejsów, które można przeciągać w obrębie ekranu. \\
+\texttt{FramedAvatar.vue} &
+Komponent odpowiedzialny za wyświetlanie awataru użytkownika w ozdobnej ramce. \\
+\texttt{StatusPanel.vue} &
+Panel prezentujący podstawowe informacje o stanie systemu i połączenia, w tym status online/offline. \\
+\texttt{AddFriendModal.vue} &
+Okno modalne umożliwiające dodanie nowego znajomego na podstawie jego identyfikatora. \\
+\texttt{InfoPanel.vue} &
+Panel informacyjny wyświetlający szczegóły dotyczące aktualnie wybranego rozmówcy oraz systemu. \\
+\texttt{ChatList.vue} &
+Lista dostępnych konwersacji oraz skrótowych informacji o ostatnich wiadomościach. \\
+\texttt{ChatWindow.vue} &
+Główne okno czatu prezentujące przebieg rozmowy oraz pole wprowadzania wiadomości. \\
+\end{longtable}
+
+\subsection*{3.7. Zasoby statyczne i style}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\texttt{web-ui/src/assets/main.css} &
+Główny arkusz stylów aplikacji frontendowej, definiujący ogólny wygląd interfejsu. \\
+\texttt{web-ui/src/assets/base.css} &
+Podstawowe style resetujące oraz wspólne reguły typograficzne wykorzystywane w całej aplikacji. \\
+\texttt{web-ui/src/assets/logo.svg} &
+Wektorowa grafika logo aplikacji wykorzystywana w interfejsie. \\
+\texttt{web-ui/src/assets/*.gif} &
+Zestaw animowanych grafik w formacie GIF (pliki \texttt{1.gif}--\texttt{8.gif}) używanych jako elementy dekoracyjne interfejsu oraz tła. \\
+\texttt{web-ui/src/types/gradient-gl.d.ts} &
+Deklaracje typów dla niestandardowych modułów związanych z efektami graficznymi tła, używane przez część warstwy prezentacji. \\
+\end{longtable}
+
+\end{document}

@@ -1,0 +1,60 @@
+\documentclass[a4paper,12pt]{article}
+
+\usepackage{newtxtext,newtxmath}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[polish]{babel}
+
+\usepackage{geometry}
+\geometry{left=3cm, right=3cm, top=3cm, bottom=3cm, includeheadfoot}
+
+\renewcommand{\baselinestretch}{1.5}
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{0pt}
+\raggedbottom
+\emergencystretch=2em
+
+\usepackage{graphicx}
+\usepackage{caption}
+
+\begin{document}
+
+\begin{center}
+    \textbf{Załącznik 6. Diagramy architektury oraz przepływu wiadomości w systemie \texttt{p2p-chat}}
+\end{center}
+
+\section*{1. Architektura systemu}
+
+Na rysunku~\ref{fig:arch} przedstawiono ogólną architekturę systemu \texttt{p2p-chat}. Pokazano powiązania pomiędzy warstwą aplikacyjną (\texttt{app::client::run()}), warstwą sieciową (\texttt{NetworkLayer}), silnikiem synchronizacji (\texttt{SyncEngine}), magazynami danych opartymi na bazie \texttt{sled}, interfejsem tekstowym (\texttt{run\_tui()}) oraz wbudowanym serwerem webowym (\texttt{web::start\_server()}). Dodatkowo uwzględniono odrębny węzeł \texttt{MailboxNode}, odpowiedzialny za przechowywanie wiadomości dla nieobecnych użytkowników.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{diagram-architecture.pdf}
+    \caption{Architektura systemu \texttt{p2p-chat} obejmująca węzeł klienta, węzeł \texttt{MailboxNode}, warstwę sieciową \texttt{NetworkLayer} oraz interfejs webowy osadzony w przeglądarce.}
+    \label{fig:arch}
+\end{figure}
+
+\section*{2. Przepływ wiadomości między klientami}
+
+Rysunek~\ref{fig:flow-direct} przedstawia uproszczony przebieg wysyłania pojedynczej wiadomości pomiędzy dwoma klientami, gdy odbiorca jest dostępny online. Użytkownik w interfejsie tekstowym (\texttt{run\_tui()}) inicjuje akcję wysłania wiadomości, która jest mapowana na \texttt{UIAction::SendMessage} i przekazywana do struktury \texttt{Node}. Następnie wiadomość trafia do silnika synchronizacji (\texttt{SyncEngine}), który zapisuje ją w \textit{outboxie} i zleca warstwie sieciowej (\texttt{NetworkLayer}) wywołanie metody \texttt{send\_chat\_request()} skierowanej do docelowego \textit{PeerId}. Odbiorca przesyła zwrotne potwierdzenie dostarczenia (\texttt{DeliveryConfirmation}), które jest propagowane poprzez \texttt{NetworkLayer} i \texttt{SyncEngine} z powrotem do \texttt{Node}. Końcowym efektem jest powiadomienie interfejsu użytkownika o zmianie statusu dostarczenia w postaci zdarzenia \texttt{DeliveryStatusUpdate}.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{diagram-message-flow.pdf}
+    \caption{Przepływ wiadomości pomiędzy dwoma klientami online z wykorzystaniem \texttt{SyncEngine}, \texttt{NetworkLayer} oraz powiadomień \texttt{UiNotification}.}
+    \label{fig:flow-direct}
+\end{figure}
+
+\section*{3. Przepływ wiadomości z wykorzystaniem węzła \texttt{MailboxNode}}
+
+Na rysunku~\ref{fig:flow-mailbox} pokazano scenariusz, w którym odbiorca jest chwilowo niedostępny, a wiadomość jest przekazywana do węzła \texttt{MailboxNode}. Silnik synchronizacji po stronie nadawcy identyfikuje odpowiedni węzeł mailbox (na podstawie DHT) i wysyła żądanie poprzez \texttt{NetworkLayer} do \texttt{MailboxNode}, który zapisuje wiadomość w lokalnym \texttt{SledMailboxStore}. W momencie ponownego pojawienia się odbiorcy jego \texttt{SyncEngine} inicjuje pobranie oczekujących wiadomości z mailboxów, a następnie zapisuje je w lokalnej historii, aktualizując interfejs użytkownika.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.95\textwidth]{diagram-mailbox-flow.pdf}
+    \caption{Przepływ wiadomości z wykorzystaniem węzła \texttt{MailboxNode} w sytuacji, gdy odbiorca jest czasowo nieobecny w sieci.}
+    \label{fig:flow-mailbox}
+\end{figure}
+
+\end{document}

@@ -1,0 +1,28 @@
+flowchart LR
+    subgraph Client_Node[Węzeł klienta]
+        A_main["main()"] --> A_launch["app::launch()"]
+        A_launch --> A_client_run["app::client::run()"]
+        A_client_run --> A_storage["Magazyny danych (sled)"]
+        A_client_run --> A_network["NetworkLayer::new()"]
+        A_client_run --> A_sync["SyncEngine::new_with_network()"]
+        A_client_run --> A_tui["run_tui()"]
+        A_client_run --> A_web["web::start_server()"]
+    end
+
+    subgraph Mailbox_Node[Węzeł mailbox]
+        M_new["MailboxNode::new()"] --> M_run["MailboxNode::run_with_network()"]
+        M_run --> M_net["NetworkLayer (mailbox)"]
+        M_run --> M_store["SledMailboxStore"]
+    end
+
+    subgraph Web_UI[Przeglądarka]
+        W_vue["Aplikacja Vue 3"]
+    end
+
+    A_network <--> M_net
+    A_tui <---> A_client_run
+    A_sync -- steruje --> A_network
+    A_sync --> A_storage
+    A_web --> W_vue
+    A_network <--> P2P[(Sieć P2P)]
+    M_net <--> P2P
