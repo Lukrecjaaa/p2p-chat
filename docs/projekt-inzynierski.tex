@@ -7,7 +7,7 @@
 \usepackage[polish]{babel}
 
 \usepackage{geometry}
-\geometry{left=3cm, right=3cm, top=3cm, bottom=3cm, includeheadfoot}
+\geometry{left=3cm, right=3cm, top=2cm, bottom=3cm, includeheadfoot}
 
 \renewcommand{\baselinestretch}{1.5}
 \setlength{\parindent}{1.25cm}
@@ -18,9 +18,9 @@
 \usepackage{fancyhdr}
 \pagestyle{fancy}
 \fancyhf{}
-\setlength{\headheight}{30pt}
-\setlength{\headsep}{40pt}
-\fancyhead[C]{\textbf{UNIWERSYTET WSB MERITO W POZNANIU}\\\textbf{WYDZIAŁ FINANSÓW I BANKOWOŚCI}}
+\setlength{\headheight}{56pt}
+\setlength{\headsep}{1cm}
+\fancyhead[C]{\includegraphics[height=56pt]{logo.pdf}}
 \fancyfoot[LE,RO]{\fontsize{12}{14.4}\selectfont\thepage}
 \renewcommand{\headrulewidth}{0pt}
 
@@ -68,22 +68,17 @@
 
 % Strona tytułowa (strona 1)
 \thispagestyle{empty}
+\vspace*{-4cm}
 \begin{center}
-    \textbf{UNIWERSYTET WSB MERITO W POZNANIU}\\
-    \textbf{WYDZIAŁ FINANSÓW I BANKOWOŚCI}\\[8cm]
+    \includegraphics[height=56pt]{logo.pdf}\\
+    Wydział Finansów i Bankowości\\[8cm]
     {\fontsize{18}{21.6}\selectfont\textbf{Zdecentralizowany System Komunikacji P2P z Szyfrowaniem End-to-End w języku Rust}}\\[2cm]
-    \textbf{PROJEKT DYPLOMOWY}
-\end{center}
-\clearpage
-
-% Strona 2
-\thispagestyle{empty}
-\begin{center}
-    \textbf{UNIWERSYTET WSB MERITO W POZNANIU}\\
-    \textbf{WYDZIAŁ FINANSÓW I BANKOWOŚCI}\\[12cm]
+    PROJEKT DYPLOMOWY
+    \vfill
     Poznań 2025
 \end{center}
 \clearpage
+
 
 % Spis treści
 \tableofcontents
@@ -132,7 +127,19 @@ Realizacja głównego problemu badawczego wymaga rozwiązania szeregu zagadnień
 \subsection{Cel główny i cele szczegółowe projektu}
 \textbf{Cel główny:} Stworzenie bezpiecznego, zdecentralizowanego komunikatora peer-to-peer, zaimplementowanego w języku Rust, wykorzystującego biblioteki takie jak \textbf{libp2p} oraz mechanizmy DHT do przechowywania historii wiadomości, a także zapewniającego intuicyjny interfejs użytkownika oparty na frameworku Vue.js.
 
-\textbf{Cele szczegółowe:} Realizacja celu głównego projektu opiera się na osiągnięciu następujących celów cząstkowych. W pierwszej kolejności konieczne jest opracowanie architektury systemu peer-to-peer wykorzystującej bibliotekę libp2p, która zapewni modularność oraz rozszerzalność rozwiązania. Następnym krokiem jest implementacja mechanizmu szyfrowania end-to-end opartego na algorytmie wymiany kluczy X25519\footnote{X25519 to funkcja uzgadniania kluczy oparta na krzywej eliptycznej Curve25519, zaprojektowana przez Daniela J. Bernsteina, oferująca wysoki poziom bezpieczeństwa przy zachowaniu efektywności obliczeniowej. Schemat ten został znormalizowany w dokumencie RFC 7748 (Langley i in., \textit{Elliptic Curves for Security}) [1].} oraz szyfru strumieniowego ChaCha20-Poly1305\footnote{ChaCha20-Poly1305 to algorytm szyfrowania uwierzytelnionego (AEAD) łączący szyfr strumieniowy ChaCha20 z kodem uwierzytelniania wiadomości Poly1305, zapewniający zarówno poufność, jak i integralność danych. Zestaw ten został znormalizowany w dokumencie RFC 8439 (Nir, Langley, \textit{ChaCha20 and Poly1305 for IETF Protocols}) [2].}, gwarantującego poufność komunikacji. Projekt zakłada również wdrożenie mechanizmu automatycznego wykrywania węzłów w sieci lokalnej z wykorzystaniem protokołu mDNS wraz z możliwością przypisywania przez użytkowników pseudonimów ułatwiających identyfikację kontaktów. Niezbędne jest także stworzenie funkcjonalności umożliwiającej wysyłanie wiadomości tekstowych oraz bezpieczne przechowywanie historii konwersacji w lokalnej bazie danych. Istotnym elementem systemu jest integracja rozproszonego przechowywania wiadomości przeznaczonych dla nieobecnych użytkowników z wykorzystaniem mechanizmu DHT, co pozwoli na asynchroniczną wymianę informacji. Ponadto, projekt przewiduje opracowanie mechanizmu weryfikacji dostarczenia wiadomości oraz autoryzowanego usuwania danych z węzłów przechowujących, co zapewni efektywne zarządzanie zasobami systemowymi. Dla zachowania stabilności działania konieczne jest zapewnienie skalowalności systemu poprzez implementację mechanizmów przeciwdziałających przeciążeniom sieci, takich jak wykładnicze wycofywanie przy ponownych próbach połączeń. Wreszcie, projekt zakłada zaprojektowanie oraz implementację responsywnego interfejsu użytkownika wykorzystującego framework Vue.js, umożliwiającego intuicyjną komunikację oraz zarządzanie kluczami kryptograficznymi, a także przeprowadzenie kompleksowych testów bezpieczeństwa oraz optymalizacji wydajnościowych systemu.
+\textbf{Cele szczegółowe:} Realizacja celu głównego projektu opiera się na osiągnięciu następujących celów cząstkowych:
+
+\begin{enumerate}
+    \item \textbf{Analiza technologii i narzędzi (libp2p, szyfrowanie)} -- Opracowanie architektury systemu peer-to-peer wykorzystującej bibliotekę libp2p, która zapewni modularność oraz rozszerzalność rozwiązania. Przeprowadzenie analizy mechanizmów kryptograficznych, w tym algorytmu wymiany kluczy X25519\footnote{X25519 to funkcja uzgadniania kluczy oparta na krzywej eliptycznej Curve25519, zaprojektowana przez Daniela J. Bernsteina, oferująca wysoki poziom bezpieczeństwa przy zachowaniu efektywności obliczeniowej. Schemat ten został znormalizowany w dokumencie RFC 7748 (Langley i in., \textit{Elliptic Curves for Security}) [1].} oraz szyfru strumieniowego ChaCha20-Poly1305\footnote{ChaCha20-Poly1305 to algorytm szyfrowania uwierzytelnionego (AEAD) łączący szyfr strumieniowy ChaCha20 z kodem uwierzytelniania wiadomości Poly1305, zapewniający zarówno poufność, jak i integralność danych. Zestaw ten został znormalizowany w dokumencie RFC 8439 (Nir, Langley, \textit{ChaCha20 and Poly1305 for IETF Protocols}) [2].}, które będą stanowić podstawę szyfrowania end-to-end gwarantującego poufność komunikacji.
+
+    \item \textbf{Implementacja podstawowych funkcji (mDNS, wysyłanie wiadomości, historia, szyfrowanie)} -- Wdrożenie mechanizmu automatycznego wykrywania węzłów w sieci lokalnej z wykorzystaniem protokołu mDNS wraz z możliwością przypisywania przez użytkowników pseudonimów ułatwiających identyfikację kontaktów. Implementacja mechanizmu szyfrowania end-to-end opartego na algorytmie wymiany kluczy X25519 oraz szyfru strumieniowego ChaCha20-Poly1305. Stworzenie funkcjonalności umożliwiającej wysyłanie wiadomości tekstowych oraz bezpieczne przechowywanie historii konwersacji w lokalnej bazie danych.
+
+    \item \textbf{Analiza wykonywalności DHT do przechowywania offline} -- Integracja rozproszonego przechowywania wiadomości przeznaczonych dla nieobecnych użytkowników z wykorzystaniem mechanizmu DHT, co pozwoli na asynchroniczną wymianę informacji. Opracowanie mechanizmu weryfikacji dostarczenia wiadomości oraz autoryzowanego usuwania danych z węzłów przechowujących, co zapewni efektywne zarządzanie zasobami systemowymi.
+
+    \item \textbf{Projekt i implementacja interfejsu użytkownika} -- Zaprojektowanie oraz implementacja responsywnego interfejsu użytkownika wykorzystującego framework Vue.js, umożliwiającego intuicyjną komunikację oraz zarządzanie kluczami kryptograficznymi.
+
+    \item \textbf{Testowanie i optymalizacja} -- Zapewnienie skalowalności systemu poprzez implementację mechanizmów przeciwdziałających przeciążeniom sieci, takich jak wykładnicze wycofywanie przy ponownych próbach połączeń. Przeprowadzenie kompleksowych testów bezpieczeństwa oraz optymalizacji wydajnościowych systemu.
+\end{enumerate}
 
 \subsection{Zakres podmiotowy, przedmiotowy, czasowy i przestrzenny}
 \textbf{Zakres podmiotowy.} Projekt skierowany jest do różnorodnych grup użytkowników wymagających bezpiecznych narzędzi komunikacyjnych. Do głównych adresatów rozwiązania należą osoby ceniące wysoką prywatność w komunikacji oraz poszukujące alternatywy dla komercyjnych platform scentralizowanych. Istotną grupą docelową są również aktywiści oraz dziennikarze śledczy działający w warunkach ograniczonej wolności słowa, dla których odporność na cenzurę oraz ochrona przed nadzorem stanowią kluczowe wymagania. Rozwiązanie może znaleźć zastosowanie w organizacjach przetwarzających wrażliwe dane, które ze względów bezpieczeństwa oraz zgodności z przepisami o ochronie danych osobowych muszą zapewnić maksymalną poufność komunikacji wewnętrznej. Ponadto, projekt adresowany jest do społeczności technologicznych zainteresowanych rozwiązaniami zdecentralizowanymi oraz do badaczy i entuzjastów technologii peer-to-peer oraz kryptografii, którzy mogą wykorzystać system jako platformę do dalszych eksperymentów i rozwoju.
