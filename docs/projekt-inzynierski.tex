@@ -121,10 +121,10 @@ Implementacja projektu opiera się na wykorzystaniu zaawansowanych technik krypt
 \subsection{Problem badawczy}
 W jaki sposób zaprojektować i zaimplementować zdecentralizowany system komunikacji peer-to-peer (bez centralnego serwera aplikacyjnego), który zwiększy poziom prywatności użytkowników poprzez zastosowanie szyfrowania end-to-end, umożliwi asynchroniczną wymianę wiadomości (w tym dostarczanie wiadomości do nieaktywnych użytkowników), a jednocześnie zapewni efektywne wykrywanie oraz łączenie się z innymi urządzeniami w obrębie sieci lokalnej przy użyciu mDNS?
 
-\subsection{Problemy szczegółowe}
+\subsection{Cel główny i cele szczegółowe projektu}
+
 Realizacja głównego problemu badawczego wymaga rozwiązania szeregu zagadnień o charakterze technicznym i projektowym. Pierwszym z nich jest zapewnienie efektywnego wykrywania oraz łączenia się z innymi węzłami sieci w warunkach sieci lokalnej, co wiąże się z koniecznością wyboru odpowiedniego protokołu rozgłaszania obecności węzłów oraz mechanizmu automatycznego nawiązywania połączeń bez konieczności manualnej konfiguracji przez użytkowników. Kolejnym wyzwaniem jest implementacja bezpiecznego przechowywania wiadomości przeznaczonych dla nieaktywnych użytkowników w rozproszonej tablicy haszującej przy jednoczesnym zachowaniu pełnej poufności ich treści, co wymaga zastosowania odpowiednich technik kryptograficznych uniemożliwiających odczytanie zawartości przez węzły przechowujące dane. Trzecim istotnym problemem jest zaprojektowanie mechanizmu weryfikacji dostarczenia wiadomości, który umożliwi bezpieczne usuwanie danych z DHT po ich odczytaniu przez właściwego odbiorcę, jednocześnie zapobiegając nieautoryzowanemu usuwaniu wiadomości przez podmioty niepowołane. Wreszcie, konieczne jest zapewnienie autentyczności oraz integralności przesyłanych danych przy jednoczesnym zachowaniu anonimowości użytkowników, co wymaga starannego wyważenia pomiędzy wymogami bezpieczeństwa a ochroną prywatności uczestników komunikacji.
 
-\subsection{Cel główny i cele szczegółowe projektu}
 \textbf{Cel główny:} Stworzenie bezpiecznego, zdecentralizowanego komunikatora peer-to-peer, zaimplementowanego w języku Rust, wykorzystującego biblioteki takie jak \textbf{libp2p} oraz mechanizmy DHT do przechowywania historii wiadomości, a także zapewniającego intuicyjny interfejs użytkownika oparty na frameworku Vue.js.
 
 \textbf{Cele szczegółowe:} Realizacja celu głównego projektu opiera się na osiągnięciu następujących celów cząstkowych:
@@ -154,7 +154,8 @@ Realizacja głównego problemu badawczego wymaga rozwiązania szeregu zagadnień
 \subsection{Metody i techniki badawcze}
 W projekcie zastosowano zestaw metod i technik badawczych właściwych dla prac o charakterze wdrożeniowym w dziedzinie inżynierii oprogramowania. Proces realizacji rozpoczęto od przeglądu literatury oraz istniejących rozwiązań z zakresu systemów peer-to-peer i protokołów kryptograficznych, co pozwoliło na wstępną identyfikację dobrych praktyk projektowych oraz typowych zagrożeń bezpieczeństwa. W fazie implementacji przyjęto metodykę prototypowania iteracyjnego, w ramach której kolejne funkcjonalności systemu były wdrażane w krótkich cyklach, co umożliwiało bieżące weryfikowanie założeń projektowych oraz reagowanie na napotkane problemy techniczne. Weryfikację poprawności podstawowych mechanizmów kryptograficznych prowadzono w sposób praktyczny, poprzez testowanie scenariuszy wymiany kluczy i szyfrowania wiadomości oraz sprawdzanie, czy dane przesyłane w sieci są nieczytelne dla podglądu narzędziem typu Wireshark. Interfejs użytkownika oceniano na bieżąco pod kątem intuicyjności obsługi podczas pracy z prototypem systemu. Dodatkowe, bardziej systematyczne testy wydajnościowe (m.in. pomiar opóźnień w dostarczaniu wiadomości, zużycia zasobów systemowych oraz zachowania systemu pod obciążeniem) są planowane na końcowym etapie realizacji projektu.
 
-\subsection{Zadania w projekcie}
+\setsectionlabel{B2}
+\section{B2. Zadania w projekcie}
 \noindent\begin{longtable}{|p{3.5cm}|p{6cm}|p{5cm}|}
 \hline
 \textbf{Cele szczegółowe projektu} & \textbf{Zadania i termin realizacji} & \textbf{Osoby zaangażowane}\\
@@ -788,7 +789,7 @@ Gdyby projekt był realizowany ponownie, kilka obszarów można by zaplanować i
 Plany przyszłego rozwoju obejmują przede wszystkim obszary zidentyfikowane wcześniej jako ograniczenia: mechanizmy NAT traversal umożliwiające komunikację przez internet, obsługę przesyłania plików i załączników multimedialnych oraz eksperymenty z kryptografią postkwantową. Projekt może również stanowić punkt wyjścia dla badań nad skalowalnością systemów P2P i mechanizmami zachęt dla operatorów węzłów mailbox, jeśli system miałby być wykorzystywany w większej skali.
 
 \setsectionlabel{C5}
-\section{C5. Użyte materiały i bibliografia związana z realizacją projektu}
+\section{C5. Wykorzystane materiały i bibliografia związana z realizacją projektu}
 
 Realizacja projektu opierała się na szerokiej bazie źródeł obejmujących dokumenty standardów branżowych, specyfikacje protokołów, dokumentację techniczną wykorzystywanych bibliotek oraz publikacje naukowe dotyczące kryptografii oraz systemów rozproszonych. Poniżej przedstawiono kluczowe materiały które wpłynęły na decyzje projektowe oraz implementację systemu.
 
